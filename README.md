@@ -115,7 +115,37 @@ git clone https://github.com/Kartiik7/Fillrv2.git
 cd Fillrv2
 ```
 
-### 2. Backend Setup
+### 2. Quick Setup (Environment Files)
+
+**Automated Setup (Recommended):**
+
+Windows (PowerShell):
+```powershell
+.\setup-env.ps1
+```
+
+Linux/Mac:
+```bash
+chmod +x setup-env.sh
+./setup-env.sh
+```
+
+This creates:
+- `client/env.js` from `client/env.example.js`
+- `extension/env.js` from `extension/env.example.js`
+
+**Manual Setup:**
+```bash
+# Frontend
+cp client/env.example.js client/env.js
+
+# Extension
+cp extension/env.example.js extension/env.js
+```
+
+Then edit each file with your configuration.
+
+### 3. Backend Setup
 
 #### Install Dependencies
 ```bash
@@ -133,17 +163,17 @@ JWT_SECRET=your-super-secret-jwt-key-here
 GOOGLE_CLIENT_ID=your-google-oauth-client-id
 
 # CORS Origins (comma-separated, no spaces)
-CORS_ORIGINS=http://127.0.0.1:5500,http://localhost:3000
+CORS_ORIGINS=http://127.0.0.1:5500,http://localhost:3000,https://fillr-v2.netlify.app
 
 # Email Service (Resend)
 RESEND_API_KEY=your-resend-api-key
 RESEND_FROM=Fillr <noreply@yourdomain.com>
 
 # Frontend URL (for password reset links)
-FRONTEND_URL=http://127.0.0.1:5500
+FRONTEND_URL=https://fillr-v2.netlify.app
 
 # Environment
-NODE_ENV=development
+NODE_ENV=production
 
 # Chrome Extension ID (leave blank in dev)
 EXTENSION_ID=
@@ -160,7 +190,7 @@ npm start
 
 Server runs at: **http://localhost:5000**
 
-### 3. Frontend Setup
+### 4. Frontend Setup
 
 #### Option A: Live Server (VS Code)
 1. Install **Live Server** extension in VS Code
@@ -175,12 +205,35 @@ npx http-server -p 3000
 
 Access at: **http://localhost:3000/pages/index.html**
 
-### 4. Extension Setup
+#### Configure Frontend Environment
+Create `client/env.js` from the example:
+```bash
+cd client
+cp env.example.js env.js
+```
 
-#### Configure Backend URL
-Edit `extension/env.js`:
+Edit `client/env.js` with your values:
 ```javascript
-export const API_BASE_URL = 'http://localhost:5000/api';
+const ENV = Object.freeze({
+  API_URL: 'http://localhost:5000/api',
+  GOOGLE_CLIENT_ID: 'your-google-client-id.apps.googleusercontent.com',
+});
+```
+
+### 5. Extension Setup
+
+#### Configure Extension Environment
+Create `extension/env.js` from the example:
+```bash
+cd extension
+cp env.example.js env.js
+```
+
+Edit `extension/env.js` with your backend URL:
+```javascript
+var ENV = Object.freeze({
+  API_URL: 'http://localhost:5000',
+});
 ```
 
 #### Load Unpacked Extension
@@ -376,25 +429,47 @@ npm run test:watch    # Watch mode
 
 ## 🚀 Deployment
 
-### Backend (Node.js)
-1. **Environment**: Set `NODE_ENV=production` in `.env`
-2. **Database**: Use MongoDB Atlas connection string
-3. **Hosting**: Deploy to platforms like:
-   - **Railway** / **Render** / **Heroku**
-   - **DigitalOcean** / **AWS EC2**
-4. **CORS**: Update `CORS_ORIGINS` with production domains
+### Production URLs
+- **Frontend**: https://fillr-v2.netlify.app
+- **Backend API**: https://fillrv2.onrender.com
 
-### Frontend (Static)
-1. **Netlify** (Current Setup):
+### Backend (Node.js on Render)
+**Current Setup**: Backend deployed on [Render](https://render.com)
+
+1. **Environment**: Set `NODE_ENV=production` in Render dashboard
+2. **Database**: MongoDB Atlas connection string in environment variables
+3. **Environment Variables**: Configure in Render dashboard:
+   - `MONGO_URI`
+   - `JWT_SECRET`
+   - `GOOGLE_CLIENT_ID`
+   - `CORS_ORIGINS=https://fillr-v2.netlify.app`
+   - `FRONTEND_URL=https://fillr-v2.netlify.app`
+   - `RESEND_API_KEY`
+   - `RESEND_FROM`
+   - `NODE_ENV=production`
+
+**Deploy Updates**:
+```bash
+git push origin main  # Render auto-deploys from GitHub
+```
+
+**Alternative Platforms**: Railway, Heroku, DigitalOcean, AWS EC2
+
+### Frontend (Static on Netlify)
+**Current Setup**: Frontend deployed on [Netlify](https://netlify.com)
+
+1. **Configuration**: Already configured in `netlify.toml`
+2. **Deploy**:
    ```bash
-   # Already configured in netlify.toml
-   git push origin main
+   git push origin main  # Netlify auto-deploys from GitHub
    ```
+3. **Features**:
    - Automatic deployment from GitHub
    - Clean URLs configured
    - Security headers enabled
+   - HTTPS by default
 
-2. **Alternative**: Vercel, GitHub Pages, Cloudflare Pages
+**Alternative Platforms**: Vercel, GitHub Pages, Cloudflare Pages
 
 ### Chrome Extension
 
