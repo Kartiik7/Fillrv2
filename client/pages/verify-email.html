@@ -1,0 +1,228 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify Email — Fillr</title>
+  <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+  <link rel="icon" type="image/png" href="../assets/favicon.png">
+  <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/auth.css">
+  <style>
+    .verify-icon {
+      width: 60px; height: 60px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+    }
+    .verify-icon.success { background: #f0fdf4; border: 2px solid var(--success); }
+    .verify-icon.error   { background: #fef2f2; border: 2px solid var(--danger); }
+    .verify-icon svg     { width: 28px; height: 28px; }
+
+    .verify-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--dark);
+      margin-bottom: 6px;
+    }
+    .verify-sub {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+
+    .resend-row {
+      display: flex;
+      gap: 8px;
+      max-width: 360px;
+      margin: 0 auto;
+    }
+    .resend-row .fl-input {
+      flex: 1;
+      padding: 12px 14px;
+      font-size: 0.88rem;
+    }
+    .resend-row .btn-submit {
+      width: auto;
+      padding: 12px 20px;
+      margin-top: 0;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .resend-status {
+      font-size: 0.82rem;
+      margin-top: 10px;
+      display: none;
+    }
+    .resend-hint {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .link-btn {
+      display: inline-block;
+      padding: 12px 28px;
+      font-size: 0.92rem;
+      font-weight: 700;
+      font-family: var(--sans);
+      color: #fff;
+      background: var(--blue);
+      border: none;
+      border-radius: 7px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.2s, transform 0.15s, box-shadow 0.15s;
+    }
+    .link-btn:hover {
+      background: #1d4ed8;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(37,99,235,0.35);
+    }
+  </style>
+</head>
+<body class="auth-page">
+
+  <div class="auth-wrapper">
+
+    <!-- Brand -->
+    <div class="auth-brand">
+      <a href="/">
+        Fillr<span class="dot">.</span>
+        <span class="tag">Chrome Extension</span>
+      </a>
+    </div>
+
+    <!-- Card -->
+    <div class="auth-card" style="text-align:center;">
+
+      <!-- Spinner — shown while verifying -->
+      <div id="verifyingState">
+        <div style="margin:24px 0;">
+          <svg width="48" height="48" viewBox="0 0 48 48" style="animation:spin 1s linear infinite;">
+            <circle cx="24" cy="24" r="20" fill="none" stroke="var(--blue)" stroke-width="4" stroke-dasharray="90 150" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <p class="verify-title">Verifying your email&hellip;</p>
+        <p class="verify-sub" style="margin-bottom:0;">Please wait a moment.</p>
+      </div>
+
+      <!-- Success state -->
+      <div id="successState" style="display:none;padding:8px 0;">
+        <div class="verify-icon success">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+        <p class="verify-title">Email verified!</p>
+        <p class="verify-sub">Your account is now active. You can log in.</p>
+        <a href="/login" class="link-btn">Go to Login</a>
+      </div>
+
+      <!-- Error state -->
+      <div id="errorState" style="display:none;padding:8px 0;">
+        <div class="verify-icon error">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+          </svg>
+        </div>
+        <p class="verify-title">Verification failed</p>
+        <p id="errorMessage" class="verify-sub">The link may have expired or is invalid.</p>
+
+        <!-- Resend form -->
+        <div id="resendSection">
+          <p class="resend-hint">Need a new link? Enter your email below.</p>
+          <form id="resendForm" class="resend-row">
+            <input
+              class="fl-input"
+              type="email"
+              id="resendEmail"
+              placeholder="you@example.com"
+              autocomplete="email"
+              required
+            >
+            <button type="submit" class="btn-submit" id="resendBtn">Resend</button>
+          </form>
+          <p id="resendStatus" class="resend-status"></p>
+        </div>
+      </div>
+
+    </div><!-- /auth-card -->
+  </div><!-- /auth-wrapper -->
+
+  <script src="../env.js"></script>
+  <script src="../js/api.js"></script>
+  <script>
+  (async () => {
+    const params  = new URLSearchParams(window.location.search);
+    const token   = params.get('token');
+
+    const verifyingEl = document.getElementById('verifyingState');
+    const successEl   = document.getElementById('successState');
+    const errorEl     = document.getElementById('errorState');
+    const errorMsg    = document.getElementById('errorMessage');
+
+    if (!token) {
+      verifyingEl.style.display = 'none';
+      errorEl.style.display = 'block';
+      errorMsg.textContent = 'No verification token found in the URL.';
+      return;
+    }
+
+    try {
+      const { status, data } = await apiRequest(`/auth/verify-email?token=${encodeURIComponent(token)}`);
+
+      verifyingEl.style.display = 'none';
+
+      if (status === 200 && data.success) {
+        successEl.style.display = 'block';
+      } else {
+        errorEl.style.display = 'block';
+        errorMsg.textContent = data.message || 'Verification failed. The link may have expired.';
+      }
+    } catch {
+      verifyingEl.style.display = 'none';
+      errorEl.style.display = 'block';
+      errorMsg.textContent = 'Something went wrong. Please try again.';
+    }
+
+    // Resend verification email
+    const resendForm = document.getElementById('resendForm');
+    const resendBtn  = document.getElementById('resendBtn');
+    const resendStat = document.getElementById('resendStatus');
+
+    resendForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('resendEmail').value.trim();
+      if (!email) return;
+
+      resendBtn.disabled = true;
+      resendBtn.textContent = 'Sending\u2026';
+      resendStat.style.display = 'none';
+
+      try {
+        const { data } = await apiRequest('/auth/resend-verification', 'POST', { email });
+        resendStat.style.display = 'block';
+        resendStat.style.color = 'var(--success)';
+        resendStat.textContent = data.message || 'If that email exists, a new verification link has been sent.';
+      } catch {
+        resendStat.style.display = 'block';
+        resendStat.style.color = 'var(--danger)';
+        resendStat.textContent = 'Failed to send. Please try again later.';
+      } finally {
+        resendBtn.disabled = false;
+        resendBtn.textContent = 'Resend';
+      }
+    });
+  })();
+  </script>
+
+</body>
+</html>
+

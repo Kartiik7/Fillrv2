@@ -1,0 +1,984 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — Fillr</title>
+  <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+  <link rel="icon" type="image/png" href="../assets/favicon.png">
+  <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/dashboard.css">
+  <script src="../env.js"></script>
+</head>
+<body>
+
+  <!-- ── Toast ─────────────────────────────────────────────── -->
+  <div class="db-toast" id="toast">
+    <span class="toast-icon" id="toastIcon"></span>
+    <span id="toastMsg"></span>
+  </div>
+
+  <!-- ── Nav ───────────────────────────────────────────────── -->
+  <nav class="db-nav">
+    <div class="db-nav-inner">
+      <a class="db-brand" href="#">Fillr<span class="dot">.</span><span class="tag">beta</span></a>
+      <div class="db-user">
+        <button class="db-user-btn" id="userMenuBtn" aria-label="User menu">
+          <span class="db-avatar" id="navAvatar">?</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="db-user-menu" id="userMenu">
+          <div class="db-user-menu-email" id="menuEmail">—</div>
+          <hr>
+          <button class="logout-btn" onclick="logout()">Sign out</button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Hero / Progress ───────────────────────────────────── -->
+  <div class="db-hero">
+    <div class="db-hero-inner">
+      <div class="db-hero-meta">
+        <div class="db-avatar-lg" id="heroAvatar">?</div>
+        <div>
+          <div class="db-hero-name" id="heroName">—</div>
+          <div class="db-hero-email" id="heroEmail">—</div>
+        </div>
+      </div>
+      <div class="db-progress">
+        <div class="db-progress-meta">
+          <span>Profile completion</span>
+          <span id="progressPct">0%</span>
+        </div>
+        <div class="db-progress-track">
+          <div class="db-progress-fill" id="progressFill" style="width:0%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Main ──────────────────────────────────────────────── -->
+  <main class="db-main">
+    <div class="db-form-toolbar">
+      <button type="button" class="db-fetch-btn" id="refreshMappingsBtn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        <span id="refreshBtnLabel">Fetch latest fields</span>
+      </button>
+    </div>
+    <form id="profileForm" novalidate>
+
+      <!-- Card: Identity -->
+      <div class="db-card is-open" id="card-identity">
+        <div class="db-card-hdr" data-target="card-identity">
+          <div class="db-card-hdr-left">
+            <span class="db-card-icon">🆔</span>
+            <div>
+              <div class="db-card-title">Identity</div>
+              <div class="db-card-summary">University IDs and identification numbers</div>
+            </div>
+          </div>
+          <div class="db-card-hdr-right">
+            <span class="db-card-badge" id="badge-identity">0 / 0</span>
+            <svg class="db-card-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+        </div>
+        <div class="db-card-body">
+          <div class="db-card-body-inner" id="section-ids"></div>
+        </div>
+      </div>
+
+      <!-- Card: Personal -->
+      <div class="db-card is-open" id="card-personal">
+        <div class="db-card-hdr" data-target="card-personal">
+          <div class="db-card-hdr-left">
+            <span class="db-card-icon">👤</span>
+            <div>
+              <div class="db-card-title">Personal Information</div>
+              <div class="db-card-summary">Name, contact and address details</div>
+            </div>
+          </div>
+          <div class="db-card-hdr-right">
+            <span class="db-card-badge" id="badge-personal">0 / 0</span>
+            <svg class="db-card-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+        </div>
+        <div class="db-card-body">
+          <div class="db-card-body-inner" id="section-personal"></div>
+        </div>
+      </div>
+
+      <!-- Card: Academic -->
+      <div class="db-card" id="card-academic">
+        <div class="db-card-hdr" data-target="card-academic">
+          <div class="db-card-hdr-left">
+            <span class="db-card-icon">📚</span>
+            <div>
+              <div class="db-card-title">Academic Records</div>
+              <div class="db-card-summary">School, graduation and post-graduation percentages</div>
+            </div>
+          </div>
+          <div class="db-card-hdr-right">
+            <span class="db-card-badge" id="badge-academics">0 / 0</span>
+            <svg class="db-card-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+        </div>
+        <div class="db-card-body">
+          <div class="db-card-body-inner" id="section-academics"></div>
+        </div>
+      </div>
+
+      <!-- Card: Education -->
+      <div class="db-card" id="card-education">
+        <div class="db-card-hdr" data-target="card-education">
+          <div class="db-card-hdr-left">
+            <span class="db-card-icon">🏫</span>
+            <div>
+              <div class="db-card-title">Education Details</div>
+              <div class="db-card-summary">College, program, stream and batch</div>
+            </div>
+          </div>
+          <div class="db-card-hdr-right">
+            <span class="db-card-badge" id="badge-education">0 / 0</span>
+            <svg class="db-card-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+        </div>
+        <div class="db-card-body">
+          <div class="db-card-body-inner" id="section-education"></div>
+        </div>
+      </div>
+
+      <!-- Card: Placement -->
+      <div class="db-card" id="card-placement">
+        <div class="db-card-hdr" data-target="card-placement">
+          <div class="db-card-hdr-left">
+            <span class="db-card-icon">💼</span>
+            <div>
+              <div class="db-card-title">Placement</div>
+              <div class="db-card-summary">Job preferences and placement details</div>
+            </div>
+          </div>
+          <div class="db-card-hdr-right">
+            <span class="db-card-badge" id="badge-placement">0 / 0</span>
+            <svg class="db-card-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+        </div>
+        <div class="db-card-body">
+          <div class="db-card-body-inner" id="section-placement"></div>
+        </div>
+      </div>
+
+      <!-- Card: Links -->
+      <div class="db-card" id="card-links">
+        <div class="db-card-hdr" data-target="card-links">
+          <div class="db-card-hdr-left">
+            <span class="db-card-icon">🔗</span>
+            <div>
+              <div class="db-card-title">Links</div>
+              <div class="db-card-summary">Professional profiles and portfolio</div>
+            </div>
+          </div>
+          <div class="db-card-hdr-right">
+            <span class="db-card-badge" id="badge-links">0 / 0</span>
+            <svg class="db-card-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+        </div>
+        <div class="db-card-body">
+          <div class="db-card-body-inner" id="section-links"></div>
+        </div>
+      </div>
+
+      <!-- Save Bar -->
+      <div class="db-save-bar">
+        <button class="db-save-btn" type="submit" id="saveBtn" disabled>
+          <span class="sp" id="saveSpinner"></span>
+          <span class="btn-label" id="saveBtnLabel">Save Changes</span>
+        </button>
+        <span class="db-save-hint" id="saveHint">No unsaved changes</span>
+      </div>
+
+    </form>
+
+    <!-- Extension Keys ───────────────────────── -->
+    <div class="db-keys-section" id="keysSection">
+      <div class="db-keys-hdr">
+        <div>
+          <div class="db-keys-title">🔑 Extension Secret Keys</div>
+          <p class="db-keys-desc">Generate secret keys to connect the Fillr browser extension. Each key is shown <strong>once</strong>&nbsp;— copy it immediately.</p>
+        </div>
+        <button class="db-keys-gen-btn" id="openKeyGenModal" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Generate Key
+        </button>
+      </div>
+
+      <div class="db-keys-list" id="keysList">
+        <div class="db-keys-empty" id="keysEmpty">No extension keys yet. Generate one to get started.</div>
+      </div>
+    </div>
+
+    <!-- Key Generation Modal ─────────────────── -->
+    <div class="db-modal-backdrop" id="keyGenModalBackdrop" role="dialog" aria-modal="true" aria-labelledby="keyGenModalTitle">
+      <div class="db-modal">
+        <div class="db-modal-header">
+          <span class="db-modal-icon">🔐</span>
+          <h2 id="keyGenModalTitle">Generate Extension Key</h2>
+        </div>
+        <p class="db-modal-desc">Enter a name for this key (e.g. "Work laptop") and your password to confirm.</p>
+        <div class="db-fl" style="margin: 16px 0 8px;">
+          <input class="db-fl-input" type="text" id="keyDeviceName" placeholder=" " maxlength="100" autocomplete="off">
+          <label class="db-fl-label" for="keyDeviceName">Device Name</label>
+          <div class="db-fl-bar"></div>
+        </div>
+        <div class="db-fl" style="margin: 0 0 4px;">
+          <input class="db-fl-input" type="password" id="keyGenPassword" placeholder=" " autocomplete="current-password">
+          <label class="db-fl-label" for="keyGenPassword">Your Password</label>
+          <div class="db-fl-bar"></div>
+        </div>
+        <div class="db-modal-err" id="keyGenErr" aria-live="polite"></div>
+        <div class="db-modal-actions">
+          <button class="db-modal-cancel" id="cancelKeyGen" type="button">Cancel</button>
+          <button class="db-modal-confirm" id="confirmKeyGen" type="button" style="background:var(--blue);">Generate</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Key Display Modal (shown once after generation) ──── -->
+    <div class="db-modal-backdrop" id="keyDisplayBackdrop" role="dialog" aria-modal="true" aria-labelledby="keyDisplayTitle">
+      <div class="db-modal" style="max-width:520px;">
+        <div class="db-modal-header">
+          <span class="db-modal-icon">✅</span>
+          <h2 id="keyDisplayTitle">Key Generated</h2>
+        </div>
+        <p class="db-modal-desc"><strong>Copy this key now.</strong> It will not be shown again.</p>
+        <div class="db-key-display">
+          <code id="keyDisplayValue">—</code>
+          <button class="db-key-copy-btn" id="copyKeyBtn" type="button" title="Copy to clipboard">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          </button>
+        </div>
+        <div class="db-modal-actions" style="margin-top:16px;">
+          <button class="db-modal-cancel" id="closeKeyDisplay" type="button">Done</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Danger Zone ──────────────────────────── -->
+    <div class="db-danger-zone">
+      <div>
+        <div class="db-danger-title">⚠️ Danger Zone</div>
+        <p class="db-danger-desc">Permanently delete your account and all associated data.<br>This action <strong>cannot be undone</strong>.</p>
+      </div>
+      <button class="db-danger-btn" id="openDeleteModal" type="button">Delete My Account</button>
+    </div>
+
+  </main>
+
+  <!-- Delete Account Modal ──────────────────── -->
+  <div class="db-modal-backdrop" id="deleteModalBackdrop" role="dialog" aria-modal="true" aria-labelledby="deleteModalTitle">
+    <div class="db-modal">
+      <div class="db-modal-header">
+        <span class="db-modal-icon">🗑</span>
+        <h2 id="deleteModalTitle">Delete Account</h2>
+      </div>
+      <p class="db-modal-desc">
+        This will <strong>permanently delete</strong> your account and all personal data stored by
+        Fillr. Once confirmed, recovery is impossible.
+      </p>
+      <!-- Floating-label password field (matches dashboard style) -->
+      <div class="db-fl" style="margin: 20px 0 4px;">
+        <input class="db-fl-input" type="password" id="deletePassword" placeholder=" " autocomplete="current-password">
+        <label class="db-fl-label" for="deletePassword">Confirm your password</label>
+        <div class="db-fl-bar"></div>
+      </div>
+      <div class="db-modal-err" id="deleteErr" aria-live="polite"></div>
+      <div class="db-modal-actions">
+        <button class="db-modal-cancel" id="cancelDelete" type="button">Cancel</button>
+        <button class="db-modal-confirm" id="confirmDelete" type="button">Delete Permanently</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="db-legal-footer">
+    <a href="/terms">Terms &amp; Conditions</a>
+    <a href="/privacy">Privacy Policy</a>
+  </div>
+
+  <script>
+  /* ── Helpers ─────────────────────────────────────────────── */
+  const API_URL = ENV.API_URL || 'http://localhost:5000/api';
+  const $ = id => document.getElementById(id);
+  const v = id => ($(''+id)?.value || '').trim();
+
+  function showToast(msg, type = 'success') {
+    const t = $('toast');
+    $('toastMsg').textContent = msg;
+    $('toastIcon').textContent = type === 'success' ? '✓' : '✕';
+    t.className = 'db-toast show toast-' + type;
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => { t.className = 'db-toast'; }, 3600);
+  }
+
+  /* ── Card toggle ─────────────────────────────────────────── */
+  document.querySelectorAll('.db-card-hdr').forEach(hdr => {
+    hdr.addEventListener('click', () => {
+      const card = document.getElementById(hdr.dataset.target);
+      if (card) card.classList.toggle('is-open');
+    });
+  });
+
+  function openCard(fieldId) {
+    const field = $(fieldId);
+    if (!field) return;
+    const card = field.closest('.db-card');
+    if (card) card.classList.add('is-open');
+  }
+
+  /* ── User menu ───────────────────────────────────────────── */
+  $('userMenuBtn').addEventListener('click', e => {
+    e.stopPropagation();
+    $('userMenu').classList.toggle('open');
+  });
+  document.addEventListener('click', () => $('userMenu').classList.remove('open'));
+
+  /* ── Auth / Logout ───────────────────────────────────────── */
+  function logout() {
+    localStorage.removeItem('token');
+    sessionStorage.removeItem('token');
+    window.location.href = '/login';
+  }
+
+  /* ── Dynamic mapping-driven form ─────────────────────────── */
+  const GROUP_ORDER = [
+    { key: 'ids',       label: 'Identity',              badge: 'badge-identity',  section: 'section-ids' },
+    { key: 'personal',  label: 'Personal Information',  badge: 'badge-personal',  section: 'section-personal' },
+    { key: 'academics', label: 'Academic Records',      badge: 'badge-academics', section: 'section-academics' },
+    { key: 'education', label: 'Education Details',     badge: 'badge-education', section: 'section-education' },
+    { key: 'placement', label: 'Placement',             badge: 'badge-placement', section: 'section-placement' },
+    { key: 'links',     label: 'Links',                 badge: 'badge-links',     section: 'section-links' },
+  ];
+
+  const GROUP_PREFIX = {
+    ids:       'ids.',
+    personal:  'personal.',
+    academics: 'academics.',
+    education: 'education.',
+    placement: 'placement.',
+    links:     'links.',
+  };
+
+  const LOCAL_SEEN_KEY = 'fillr:lastSeenMappingUpdate';
+  let _fields = [];
+  let _snapshot = '';
+  let _lastMeta = null;
+  let _lastSeen = localStorage.getItem(LOCAL_SEEN_KEY) || null;
+
+  function syncSelectLabel(sel) {
+    sel.closest('.db-fl').classList.toggle('has-value', sel.value !== '');
+  }
+
+  function toLabel(str) {
+    // Handle common acronyms that should be all-caps
+    const acronyms = { dob: 'DOB', url: 'URL', uid: 'UID', id: 'ID', cgpa: 'CGPA', api: 'API' };
+    const lower = str.toLowerCase();
+    if (acronyms[lower]) return acronyms[lower];
+    
+    return str
+      .replace(/[_.-]+/g, ' ')
+      .split(' ')
+      .filter(Boolean)
+      .map(w => {
+        const wl = w.toLowerCase();
+        return acronyms[wl] || (w.charAt(0).toUpperCase() + w.slice(1));
+      })
+      .join(' ');
+  }
+
+  function inferType(key, path) {
+    const k = (key || '').toLowerCase();
+    const p = (path || '').toLowerCase();
+    const combined = `${k} ${p}`;
+    if (combined.includes('dob') || combined.includes('date_of_birth')) return 'date';
+    if (combined.includes('email')) return 'email';
+    if (combined.includes('phone')) return 'tel';
+    if (combined.includes('url') || combined.includes('link') || combined.includes('github') || combined.includes('linkedin') || combined.includes('portfolio') || combined.includes('resume')) return 'url';
+    if (combined.includes('percentage') || combined.includes('cgpa') || combined.includes('count') || combined.includes('gap') || combined.includes('age')) return 'number';
+    if (combined.includes('address')) return 'textarea';
+    return 'text';
+  }
+
+  function buildFields(mappings) {
+    const list = [];
+    Object.entries(mappings || {}).forEach(([key, val]) => {
+      const path = val.path || '';
+      const lower = path.toLowerCase();
+      const group = Object.entries(GROUP_PREFIX).find(([, prefix]) => lower.startsWith(prefix))?.[0] || 'personal';
+      list.push({
+        key,
+        path,
+        group,
+        label: toLabel(key),
+        type: val.fieldType || inferType(key, path),
+        id: `fld-${key}`,
+      });
+    });
+    return list.sort((a, b) => {
+      if (a.group !== b.group) return a.group.localeCompare(b.group);
+      return a.label.localeCompare(b.label);
+    });
+  }
+
+  function createFieldHTML(f) {
+    const base = `
+      <div class="db-fl${f.type === 'textarea' ? ' db-col-full' : ''}">
+        ${f.type === 'textarea'
+          ? `<textarea class="db-fl-textarea" id="${f.id}" data-path="${f.path}" placeholder=" " rows="2"></textarea>`
+          : `<input class="db-fl-input" type="${f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : f.type === 'url' ? 'url' : f.type === 'email' ? 'email' : f.type === 'tel' ? 'tel' : 'text'}" id="${f.id}" data-path="${f.path}" placeholder=" ">`
+        }
+        <label class="db-fl-label" for="${f.id}">${f.label}</label>
+        <div class="db-fl-bar"></div>
+        <div class="db-fl-error" id="${f.id}-err"></div>
+      </div>`;
+    return base;
+  }
+
+  function renderDynamicForm(fields) {
+    // Clear sections
+    GROUP_ORDER.forEach(g => {
+      const container = $(g.section);
+      if (!container) return;
+      container.innerHTML = '';
+    });
+
+    const byGroup = GROUP_ORDER.reduce((acc, g) => ({ ...acc, [g.key]: [] }), {});
+    fields.forEach(f => {
+      if (!byGroup[f.group]) byGroup[f.group] = [];
+      byGroup[f.group].push(f);
+    });
+
+    Object.entries(byGroup).forEach(([groupKey, list]) => {
+      const container = $(`section-${groupKey}`);
+      if (!container) return;
+      if (list.length === 0) {
+        container.innerHTML = '<p class="db-empty">No fields in this section.</p>';
+        return;
+      }
+      const grid = document.createElement('div');
+      grid.className = 'db-field-grid cols-3';
+      grid.innerHTML = list.map(createFieldHTML).join('');
+      container.appendChild(grid);
+    });
+
+    // Re-bind listeners for dirty tracking
+    _fields = fields;
+    bindFieldListeners();
+  }
+
+  function getPathValue(obj, path) {
+    return path.split('.').reduce((acc, part) => (acc && acc[part] != null ? acc[part] : undefined), obj);
+  }
+
+  function setPathValue(obj, path, value) {
+    const parts = path.split('.');
+    let cur = obj;
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      if (i === parts.length - 1) {
+        cur[p] = value;
+      } else {
+        cur[p] = cur[p] || {};
+        cur = cur[p];
+      }
+    }
+  }
+
+  function fillProfileValues(profile) {
+    _fields.forEach(f => {
+      const el = $(f.id);
+      if (!el) return;
+      const val = getPathValue(profile, f.path) ?? '';
+      
+      // Handle date fields: extract YYYY-MM-DD from ISO string
+      if (f.type === 'date' && val) {
+        el.value = val.includes('T') ? val.split('T')[0] : val;
+      } else {
+        el.value = val;
+      }
+      
+      if (el.tagName === 'SELECT') syncSelectLabel(el);
+    });
+
+    // Auto-calculate age from DOB on initial load
+    const dobField = _fields.find(f => {
+      const k = f.key.toLowerCase();
+      return k === 'dob' || k === 'date_of_birth';
+    });
+    if (dobField) {
+      const dobEl = $(dobField.id);
+      if (dobEl && dobEl.value) dobEl.dispatchEvent(new Event('change'));
+    }
+
+    // Resolve display name: personal.name from profile (not college_name etc.)
+    const nm = (profile?.personal?.name || '').trim()
+            || (profile?.displayName || '').trim()
+            || '—';
+    $('heroName').textContent = nm;
+    const initials = nm.split(' ').filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('');
+    $('heroAvatar').textContent = initials || '?';
+    $('navAvatar').textContent = (initials || '?')[0];
+    $('heroEmail').textContent = profile?.personal?.email || profile?.ids?.email || profile?.email || '—';
+    $('menuEmail').textContent = $('heroEmail').textContent;
+  }
+
+  function captureSnapshot() {
+    return _fields.map(f => v(f.id)).join('|');
+  }
+
+  function setDirty(dirty) {
+    $('saveBtn').disabled = !dirty;
+    const hint = $('saveHint');
+    hint.textContent = dirty ? 'You have unsaved changes' : 'No unsaved changes';
+    hint.style.color = dirty ? 'var(--amber)' : 'var(--muted)';
+  }
+
+  function updateCompletion() {
+    const total = _fields.length || 1;
+    const filled = _fields.filter(f => {
+      const val = v(f.id);
+      return val !== '' && val != null;
+    }).length;
+    const pct = Math.round((filled / total) * 100);
+    $('progressFill').style.width = pct + '%';
+    $('progressFill').classList.toggle('complete', pct === 100);
+    $('progressPct').textContent = pct + '%';
+
+    GROUP_ORDER.forEach(g => {
+      const badge = $(g.badge);
+      if (!badge) return;
+      const groupFields = _fields.filter(f => f.group === g.key);
+      const done = groupFields.filter(f => v(f.id) !== '').length;
+      badge.textContent = `${done} / ${groupFields.length || 0}`;
+      badge.className = 'db-card-badge' + (groupFields.length > 0 && done === groupFields.length ? ' complete' : done > 0 ? ' partial' : '');
+    });
+  }
+
+  function bindFieldListeners() {
+    _fields.forEach(f => {
+      const el = $(f.id);
+      if (!el) return;
+      el.removeEventListener('input', checkDirty);
+      el.removeEventListener('change', checkDirty);
+      const evt = el.tagName === 'SELECT' ? 'change' : 'input';
+      el.addEventListener(evt, checkDirty);
+      if (f.type === 'tel') {
+        el.addEventListener('input', () => { el.value = el.value.replace(/[^\d]/g, '').slice(0, 15); });
+      }
+    });
+
+    // Auto-calculate age when DOB changes
+    const dobField = _fields.find(f => {
+      const k = f.key.toLowerCase();
+      return k === 'dob' || k === 'date_of_birth';
+    });
+    const ageField = _fields.find(f => f.key.toLowerCase() === 'age');
+    if (dobField && ageField) {
+      const dobEl = $(dobField.id);
+      const ageEl = $(ageField.id);
+      if (dobEl && ageEl) {
+        ageEl.readOnly = true;
+        ageEl.title = 'Auto-calculated from Date of Birth';
+        ageEl.style.opacity = '0.7';
+        dobEl.addEventListener('change', () => {
+          const dob = new Date(dobEl.value);
+          if (!dobEl.value || isNaN(dob.getTime())) { ageEl.value = ''; checkDirty(); return; }
+          const today = new Date();
+          let age = today.getFullYear() - dob.getFullYear();
+          const m = today.getMonth() - dob.getMonth();
+          if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+          ageEl.value = age >= 0 ? String(age) : '';
+          checkDirty();
+        });
+      }
+    }
+  }
+
+  function checkDirty() {
+    setDirty(captureSnapshot() !== _snapshot);
+    updateCompletion();
+  }
+
+  function clearFieldError(id) {
+    const el = $(id);
+    if (!el) return;
+    el.classList.remove('is-error');
+    const err = $(id + '-err');
+    if (err) { err.textContent = ''; err.style.display = 'none'; }
+  }
+
+  function setFieldError(id, msg) {
+    const el = $(id);
+    if (!el) return;
+    el.classList.add('is-error');
+    el.classList.remove('is-valid');
+    const err = $(id + '-err');
+    if (err) { err.textContent = msg; err.style.display = 'block'; }
+  }
+
+  function validateAll() {
+    let ok = true;
+    _fields.forEach(f => clearFieldError(f.id));
+
+    _fields.forEach(f => {
+      const val = v(f.id);
+      if (!val) return;
+      if (f.type === 'number') {
+        const num = Number(val);
+        if (Number.isNaN(num)) { setFieldError(f.id, 'Must be a number'); ok = false; }
+      }
+      if (f.type === 'url' && val && !/^https?:\/\//i.test(val)) {
+        setFieldError(f.id, 'Include http(s)://'); ok = false;
+      }
+      if (f.type === 'tel' && val && val.replace(/\D/g,'').length < 7) {
+        setFieldError(f.id, 'Enter a valid phone'); ok = false;
+      }
+    });
+
+    return ok;
+  }
+
+  async function fetchConfigMeta() {
+    try {
+      const res = await fetch(API_URL + '/config/meta');
+      const data = await res.json();
+      if (data.success) return data.lastUpdated || null;
+    } catch (_) { /* ignore */ }
+    return null;
+  }
+
+  async function fetchConfigFull() {
+    const res = await fetch(API_URL + '/config/full');
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message || 'Failed to load config');
+    return data.mappings || {};
+  }
+
+  async function loadProfileDynamic() {
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+    if (!token) { window.location.href = '/login'; return; }
+    const res = await fetch(API_URL + '/profile', { headers: { Authorization: 'Bearer ' + token } });
+    if (res.status === 401) {
+      localStorage.removeItem('token');
+      sessionStorage.removeItem('token');
+      window.location.href = '/login';
+      return;
+    }
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message || 'Failed to load profile');
+    const profilePayload = data.profile ? { ...data.profile } : {};
+    if (data.email) profilePayload.email = data.email;
+    fillProfileValues(profilePayload);
+    _snapshot = captureSnapshot();
+    setDirty(false);
+    updateCompletion();
+  }
+
+  function showBanner() {
+    const btn = $('refreshMappingsBtn');
+    btn.classList.add('has-update');
+    $('refreshBtnLabel').textContent = 'New fields available — click to refresh';
+  }
+  function hideBanner() {
+    const btn = $('refreshMappingsBtn');
+    btn.classList.remove('has-update');
+    $('refreshBtnLabel').textContent = 'Fetch latest fields';
+  }
+
+  function markSeen(lastUpdated) {
+    _lastSeen = lastUpdated;
+    if (lastUpdated) localStorage.setItem(LOCAL_SEEN_KEY, lastUpdated);
+  }
+
+  async function refreshMappingsAndProfile() {
+    try {
+      const [meta, mappings] = await Promise.all([
+        fetchConfigMeta(),
+        fetchConfigFull(),
+      ]);
+      _lastMeta = meta;
+      renderDynamicForm(buildFields(mappings));
+      await loadProfileDynamic();
+      if (meta) markSeen(meta);
+      hideBanner();
+    } catch (err) {
+      showToast(err.message || 'Failed to refresh fields', 'error');
+    }
+  }
+
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState !== 'visible') return;
+    const meta = await fetchConfigMeta();
+    if (meta && meta !== _lastSeen) {
+      _lastMeta = meta;
+      showBanner();
+    }
+  });
+
+  $('refreshMappingsBtn').addEventListener('click', refreshMappingsAndProfile);
+
+  $('profileForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    if (!validateAll()) { showToast('Please fix the highlighted errors', 'error'); return; }
+
+    const btn = $('saveBtn');
+    btn.classList.add('is-loading');
+    btn.disabled = true;
+
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+    const payload = { profile: {} };
+    _fields.forEach(f => {
+      const val = v(f.id);
+      setPathValue(payload.profile, f.path, val === '' ? undefined : val);
+    });
+
+    try {
+      const res = await fetch(API_URL + '/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message || 'Save failed');
+      btn.classList.remove('is-loading');
+      btn.classList.add('is-success');
+      $('saveBtnLabel').textContent = 'Saved!';
+      showToast('Profile saved successfully', 'success');
+      _snapshot = captureSnapshot();
+      setDirty(false);
+      setTimeout(() => {
+        btn.classList.remove('is-success');
+        $('saveBtnLabel').textContent = 'Save Changes';
+      }, 1800);
+    } catch (err) {
+      btn.classList.remove('is-loading');
+      btn.disabled = false;
+      showToast(err.message || 'Save failed. Try again.', 'error');
+    }
+  });
+
+  /* ── Init dynamic form ───────────────────────────────────── */
+  (async function initDynamic() {
+    const meta = await fetchConfigMeta();
+    _lastMeta = meta;
+    if (!_lastSeen && meta) markSeen(meta);
+    await refreshMappingsAndProfile();
+  })();
+
+  /* ── Delete Account Modal ───────────────────────────────── */
+  (function () {
+    const backdrop = $('deleteModalBackdrop');
+    const pwInput  = $('deletePassword');
+    const errEl    = $('deleteErr');
+    const confirmBtn = $('confirmDelete');
+
+    function openModal() {
+      backdrop.classList.add('show');
+      pwInput.value = '';
+      errEl.textContent = '';
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = 'Delete Permanently';
+      setTimeout(() => pwInput.focus(), 80);
+    }
+    function closeModal() { backdrop.classList.remove('show'); }
+
+    $('openDeleteModal').addEventListener('click', openModal);
+    $('cancelDelete').addEventListener('click', closeModal);
+    backdrop.addEventListener('click', e => { if (e.target === backdrop) closeModal(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+    confirmBtn.addEventListener('click', async () => {
+      const pwd = pwInput.value;
+      if (!pwd) { errEl.textContent = 'Password is required.'; return; }
+      errEl.textContent = '';
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = 'Deleting…';
+
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      try {
+        const res = await fetch(API_URL + '/user/delete', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+          body: JSON.stringify({ password: pwd }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'Deletion failed.');
+        // Clear all stored credentials and redirect to login
+        localStorage.removeItem('token');
+        sessionStorage.removeItem('token');
+        window.location.href = '/login?deleted=1';
+      } catch (err) {
+        errEl.textContent = err.message;
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'Delete Permanently';
+      }
+    });
+  })();
+
+  /* ── Extension Key Management ─────────────────────────────── */
+  (function () {
+    const listEl       = $('keysList');
+    const emptyEl      = $('keysEmpty');
+    const genBackdrop  = $('keyGenModalBackdrop');
+    const genPwInput   = $('keyGenPassword');
+    const deviceInput  = $('keyDeviceName');
+    const genErr       = $('keyGenErr');
+    const confirmGen   = $('confirmKeyGen');
+    const dispBackdrop = $('keyDisplayBackdrop');
+    const dispValue    = $('keyDisplayValue');
+
+    function getToken() {
+      return localStorage.getItem('token') || sessionStorage.getItem('token');
+    }
+
+    function fmtDate(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+
+    function renderKeys(keys) {
+      // Remove existing key rows (keep emptyEl)
+      listEl.querySelectorAll('.db-key-row').forEach(r => r.remove());
+      if (!keys || keys.length === 0) { emptyEl.style.display = ''; return; }
+      emptyEl.style.display = 'none';
+
+      keys.forEach(k => {
+        const row = document.createElement('div');
+        row.className = 'db-key-row' + (k.isActive ? '' : ' revoked');
+        const expired = k.expiresAt && new Date(k.expiresAt) < new Date();
+        const statusLabel = !k.isActive ? 'Revoked' : expired ? 'Expired' : 'Active';
+        const statusCls   = !k.isActive ? 'revoked' : expired ? 'expired' : 'active';
+
+        row.innerHTML = `
+          <div class="db-key-info">
+            <div class="db-key-name">${k.deviceName || 'Extension'}</div>
+            <div class="db-key-meta">
+              <span class="db-key-status ${statusCls}">${statusLabel}</span>
+              <span>Created ${fmtDate(k.createdAt)}</span>
+              <span>Expires ${fmtDate(k.expiresAt)}</span>
+              ${k.lastUsedAt ? '<span>Last used ' + fmtDate(k.lastUsedAt) + '</span>' : ''}
+            </div>
+          </div>
+          <div class="db-key-actions">
+            ${k.isActive && !expired ? '<button class="db-key-revoke-btn" data-id="' + k.keyId + '">Revoke</button>' : ''}
+          </div>`;
+        listEl.appendChild(row);
+      });
+
+      // Bind revoke buttons
+      listEl.querySelectorAll('.db-key-revoke-btn').forEach(btn => {
+        btn.addEventListener('click', () => revokeKey(btn.dataset.id));
+      });
+    }
+
+    async function loadKeys() {
+      try {
+        const res = await fetch(API_URL + '/keys', {
+          headers: { Authorization: 'Bearer ' + getToken() }
+        });
+        if (res.status === 401) return;
+        const data = await res.json();
+        if (data.success) renderKeys(data.keys);
+      } catch (_) { /* silent */ }
+    }
+
+    async function revokeKey(keyId) {
+      if (!confirm('Revoke this extension key? The extension will need a new key to reconnect.')) return;
+      try {
+        const res = await fetch(API_URL + '/keys/revoke', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
+          body: JSON.stringify({ keyId })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Key revoked', 'success');
+          loadKeys();
+        } else {
+          showToast(data.message || 'Failed to revoke key', 'error');
+        }
+      } catch (_) {
+        showToast('Could not revoke key', 'error');
+      }
+    }
+
+    // Generate modal
+    function openGenModal() {
+      genBackdrop.classList.add('show');
+      genPwInput.value = '';
+      deviceInput.value = '';
+      genErr.textContent = '';
+      confirmGen.disabled = false;
+      confirmGen.textContent = 'Generate';
+      setTimeout(() => deviceInput.focus(), 80);
+    }
+    function closeGenModal() { genBackdrop.classList.remove('show'); }
+
+    $('openKeyGenModal').addEventListener('click', openGenModal);
+    $('cancelKeyGen').addEventListener('click', closeGenModal);
+    genBackdrop.addEventListener('click', e => { if (e.target === genBackdrop) closeGenModal(); });
+
+    confirmGen.addEventListener('click', async () => {
+      const pwd = genPwInput.value;
+      if (!pwd) { genErr.textContent = 'Password is required.'; return; }
+      genErr.textContent = '';
+      confirmGen.disabled = true;
+      confirmGen.textContent = 'Generating…';
+
+      try {
+        const res = await fetch(API_URL + '/keys/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
+          body: JSON.stringify({ password: pwd, deviceName: deviceInput.value.trim() || undefined })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'Key generation failed.');
+
+        closeGenModal();
+        // Show the raw key
+        dispValue.textContent = data.key.rawKey;
+        dispBackdrop.classList.add('show');
+        loadKeys();
+      } catch (err) {
+        genErr.textContent = err.message;
+        confirmGen.disabled = false;
+        confirmGen.textContent = 'Generate';
+      }
+    });
+
+    // Display modal
+    $('copyKeyBtn').addEventListener('click', () => {
+      navigator.clipboard.writeText(dispValue.textContent).then(() => {
+        showToast('Key copied to clipboard', 'success');
+      }).catch(() => {
+        // Fallback: select text
+        const range = document.createRange();
+        range.selectNodeContents(dispValue);
+        window.getSelection().removeAllRanges();
+        window.getSelection().addRange(range);
+        showToast('Select and copy the key above', 'error');
+      });
+    });
+    $('closeKeyDisplay').addEventListener('click', () => { dispBackdrop.classList.remove('show'); });
+    dispBackdrop.addEventListener('click', e => { if (e.target === dispBackdrop) dispBackdrop.classList.remove('show'); });
+
+    // Initial load
+    loadKeys();
+  })();
+
+  </script>
+</body>
+</html>
+

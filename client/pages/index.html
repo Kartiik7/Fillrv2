@@ -1,0 +1,580 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fillr — Autofill any form, instantly</title>
+  <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+  <link rel="icon" type="image/png" href="../assets/favicon.png">
+  <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/landing.css">
+</head>
+<body>
+
+<!-- ======= NAV ======= -->
+<nav class="nav">
+  <div class="container">
+    <a href="/" class="nav-brand">
+      Fillr<span class="dot">.</span>
+      <span class="tag">v2.0</span>
+    </a>
+    <div class="nav-links" id="navLinks">
+      <a href="#problems">Problems</a>
+      <a href="#features">Features</a>
+      <a href="#arch">How it works</a>
+      <a href="#install">Install</a>
+      <a href="/login" class="nav-login">Login</a>
+      <a href="/register" class="nav-cta">Get started</a>
+    </div>
+    <button class="nav-toggle" id="navToggle" aria-label="Menu">
+      <svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+  </div>
+</nav>
+
+<!-- ======= 1. HERO ======= -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-content">
+      <div class="hero-eyebrow">
+        <span class="blink"></span>
+        Chrome Extension &mdash; Google Forms
+      </div>
+      <h1>Stop retyping the same<br><em>placement form</em> data</h1>
+      <p class="hero-desc">
+        Fillr reads your academic profile once and autofills every placement
+        registration form &mdash; percentages, dropdowns, radios &mdash; in a single click.
+        Weighted keyword matching. Confidence scoring. Zero guesswork.
+      </p>
+      <div class="hero-actions">
+        <a href="/register" class="btn btn--blue">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          Get started free
+        </a>
+        <a href="#arch" class="btn btn--outline">See how it works</a>
+      </div>
+    </div>
+
+    <!-- Browser mockup -->
+    <div class="hero-visual">
+      <div class="browser">
+        <div class="browser-bar">
+          <div class="browser-dots">
+            <span class="bd-r"></span>
+            <span class="bd-y"></span>
+            <span class="bd-g"></span>
+          </div>
+          <div class="browser-url">docs.google.com/forms/d/e/placement-drive-2026...</div>
+        </div>
+        <div class="browser-body">
+          <div class="gform">
+            <div class="gform-header">
+              <div class="gform-title">Infosys Campus Placement 2026</div>
+              <div class="gform-sub">Registration Form &bull; 24 fields</div>
+            </div>
+            <div class="gform-body">
+              <div class="gform-field">
+                <span class="gform-field-lbl">Full Name *</span>
+                <div class="gform-field-val">Kartik Sharma <span class="chk">&check;</span></div>
+              </div>
+              <div class="gform-field">
+                <span class="gform-field-lbl">10th Percentage *</span>
+                <div class="gform-field-val">92.40 <span class="chk">&check;</span></div>
+              </div>
+              <div class="gform-field">
+                <span class="gform-field-lbl">12th Percentage *</span>
+                <div class="gform-field-val">88.20 <span class="chk">&check;</span></div>
+              </div>
+              <div class="gform-field">
+                <span class="gform-field-lbl">Graduation % *</span>
+                <div class="gform-field-val">8.74 CGPA <span class="chk">&check;</span></div>
+              </div>
+              <div class="gform-field">
+                <span class="gform-field-lbl">Branch *</span>
+                <div class="gform-field-val">CSE <span class="chk">&check;</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="ext-panel">
+            <div class="ext-header">
+              <div class="ext-logo">F</div>
+              <span class="ext-name">Fillr</span>
+            </div>
+            <div class="ext-body">
+              <div class="ext-stat">
+                <span class="ext-stat-lbl">Status</span>
+                <span class="ext-stat-val ok">Ready</span>
+              </div>
+              <div class="ext-divider"></div>
+              <div class="ext-stat">
+                <span class="ext-stat-lbl">Fields found</span>
+                <span class="ext-stat-val">24</span>
+              </div>
+              <div class="ext-stat">
+                <span class="ext-stat-lbl">Matched</span>
+                <span class="ext-stat-val ok">21</span>
+              </div>
+              <div class="ext-stat">
+                <span class="ext-stat-lbl">Confidence</span>
+                <span class="ext-stat-val">96%</span>
+              </div>
+              <div class="ext-divider"></div>
+              <button class="ext-btn">&#9654; Autofill now</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======= 2. PROBLEMS TIMELINE ======= -->
+<section class="problems sec" id="problems">
+  <div class="container">
+    <div class="prob-hdr">
+      <div class="sec-label">The Problem</div>
+      <h2 class="sec-title">Placement season is a data-entry marathon</h2>
+      <p class="sec-sub">
+        Every company sends a Google Form. Every form has the same 25 fields.
+        And every time, you type it all out from scratch.
+      </p>
+    </div>
+    <div class="timeline">
+      <div class="tl-item">
+        <div class="tl-num">01</div>
+        <div class="tl-body">
+          <h4>You re-enter the same data 40+ times per season</h4>
+          <p>Name, UID, percentages, CGPA — identical across every company's form. There is no reason this should be done by hand.</p>
+          <span class="tl-tag">#repetition</span>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-num">02</div>
+        <div class="tl-body">
+          <h4>One wrong decimal disqualifies you</h4>
+          <p>Typos in 10th or 12th percentage cause automatic rejections in screeners. One misplaced digit, one missed shortlist.</p>
+          <span class="tl-tag">#accuracy</span>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-num">03</div>
+        <div class="tl-body">
+          <h4>Forms drop at 11 PM with 2-hour windows</h4>
+          <p>Deadline pressure + manual entry = errors. Speed should not be a disadvantage for careful students.</p>
+          <span class="tl-tag">#time-pressure</span>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-num">04</div>
+        <div class="tl-body">
+          <h4>Every portal has a different field format</h4>
+          <p>Some ask "CGPA out of 10", some ask "Aggregate %", some ask for both. The data is yours — matching it shouldn't be your problem.</p>
+          <span class="tl-tag">#fragmentation</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======= 3. FEATURES 2×3 ======= -->
+<section class="features sec sec--alt" id="features">
+  <div class="container">
+    <div class="feat-hdr">
+      <div class="sec-label">Capabilities</div>
+      <h2 class="sec-title">Not a dumb autofill. An intelligent form engine.</h2>
+      <p class="sec-sub">Every decision Fillr makes is scored, ranked, and thresholded before a field is touched.</p>
+    </div>
+    <div class="feat-grid">
+      <div class="feat-cell">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        </div>
+        <h4>Smart field detection</h4>
+        <p>Multi-keyword weighted scoring separates "10th %" from "12th %" from "Graduation %" without ambiguity.</p>
+        <span class="feat-mono">fieldMap.score()</span>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        </div>
+        <h4>Radio &amp; dropdown selection</h4>
+        <p>Clicks the correct radio button or selects the right dropdown option using alias matching and semantic fallbacks.</p>
+        <span class="feat-mono">dispatchEvent(change)</span>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+        </div>
+        <h4>Confidence threshold</h4>
+        <p>Only fills when match confidence exceeds the threshold. Ambiguous fields are skipped — never wrong-filled.</p>
+        <span class="feat-mono">score >= MIN_CONF</span>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+        <h4>Privacy-first architecture</h4>
+        <p>Profile fetched only on explicit trigger. JWT auth. Data never leaves your own server.</p>
+        <span class="feat-mono">Authorization: Bearer</span>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <h4>Single-click autofill</h4>
+        <p>One popup click fills 20+ fields simultaneously. Native browser events triggered — works with React and Angular forms.</p>
+        <span class="feat-mono">input.dispatchEvent()</span>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <h4>Profile persistence</h4>
+        <p>Dashboard stores and updates all your academic data. One source of truth — synced to every form you fill.</p>
+        <span class="feat-mono">MongoDB + JWT</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======= 4. ARCHITECTURE ======= -->
+<section class="arch sec" id="arch">
+  <div class="container">
+    <div class="arch-hdr">
+      <div class="sec-label">Architecture</div>
+      <h2 class="sec-title">How the system works, end to end</h2>
+      <p class="sec-sub">Four layers. Each with a single responsibility.</p>
+    </div>
+    <div class="arch-diagram">
+      <div class="arch-row">
+        <div class="arch-node">
+          <div class="arch-node-icon">
+            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+          </div>
+          <h5>Dashboard</h5>
+          <p>User enters academic + personal profile</p>
+          <span class="arch-badge">client/dashboard.html</span>
+        </div>
+        <div class="arch-arrow">
+          <svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          <span>HTTPS POST</span>
+        </div>
+        <div class="arch-node">
+          <div class="arch-node-icon">
+            <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
+          </div>
+          <h5>Express API</h5>
+          <p>Validates JWT, stores profile in MongoDB</p>
+          <span class="arch-badge">server/src/app.js</span>
+        </div>
+        <div class="arch-arrow">
+          <svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          <span>GET /profile</span>
+        </div>
+        <div class="arch-node">
+          <div class="arch-node-icon">
+            <svg viewBox="0 0 24 24"><path d="M10.5 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v7.5"/><path d="m17 21 5-5-5-5"/><path d="m22 16-5 5-5-5"/></svg>
+          </div>
+          <h5>Content Script</h5>
+          <p>Fetches profile, runs field matcher on active tab</p>
+          <span class="arch-badge">extension/content.js</span>
+        </div>
+        <div class="arch-arrow">
+          <svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          <span>DOM write</span>
+        </div>
+        <div class="arch-node">
+          <div class="arch-node-icon">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </div>
+          <h5>Google Form</h5>
+          <p>Fields filled with confidence-scored matches</p>
+          <span class="arch-badge">docs.google.com/forms</span>
+        </div>
+      </div>
+      <div class="arch-note">
+        <span class="arch-note-item"><span class="arch-note-dot nd-blue"></span>JWT authenticated</span>
+        <span class="arch-note-item"><span class="arch-note-dot nd-green"></span>Weighted keyword matching</span>
+        <span class="arch-note-item"><span class="arch-note-dot nd-amber"></span>Confidence threshold enforced</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======= 5. SUPPORTED FIELDS ======= -->
+<section class="fields sec sec--alt" id="fields">
+  <div class="container">
+    <div class="fields-hdr">
+      <div class="sec-label">Coverage</div>
+      <h2 class="sec-title">Every field in a placement form</h2>
+      <p class="sec-sub">Fillr covers every data point you'll encounter across college placement portals.</p>
+    </div>
+    <div class="fields-grid">
+      <div class="field-card">
+        <div class="field-card-hdr">
+          <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <h4>Personal</h4>
+          <span class="cnt">9 fields</span>
+        </div>
+        <div class="field-card-body">
+          <ul>
+            <li>Full Name</li>
+            <li>Email Address</li>
+            <li>Phone Number</li>
+            <li>Date of Birth</li>
+            <li>Age</li>
+            <li>Gender</li>
+            <li>Permanent Address</li>
+            <li>UID / Roll No.</li>
+            <li>Father's Name</li>
+          </ul>
+        </div>
+      </div>
+      <div class="field-card">
+        <div class="field-card-hdr">
+          <svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+          <h4>Academic</h4>
+          <span class="cnt">10 fields</span>
+        </div>
+        <div class="field-card-body">
+          <ul>
+            <li>10th Percentage</li>
+            <li>12th Percentage</li>
+            <li>Diploma Percentage</li>
+            <li>Graduation % (Aggregate)</li>
+            <li>CGPA</li>
+            <li>PG Percentage</li>
+            <li>Active Backlog</li>
+            <li>Backlog Count</li>
+            <li>Gap in Education (Months)</li>
+            <li>Year of Passing</li>
+          </ul>
+        </div>
+      </div>
+      <div class="field-card">
+        <div class="field-card-hdr">
+          <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+          <h4>Application</h4>
+          <span class="cnt">8 fields</span>
+        </div>
+        <div class="field-card-body">
+          <ul>
+            <li>College Name</li>
+            <li>Program / Degree</li>
+            <li>Stream / Branch</li>
+            <li>Batch (Passing Year)</li>
+            <li>Position Applied For</li>
+            <li>GitHub URL</li>
+            <li>LinkedIn URL</li>
+            <li>Portfolio / Website</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======= 6. LIMITATIONS ======= -->
+<section class="limits sec" id="limits">
+  <div class="container">
+    <div class="limits-hdr">
+      <div class="sec-label">Transparency</div>
+      <h2 class="sec-title">What Fillr doesn't do</h2>
+      <p class="sec-sub">We'd rather be upfront about limits than overpromise.</p>
+    </div>
+    <div class="limits-grid">
+      <div class="limit-item">
+        <div class="limit-icon">
+          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        </div>
+        <div>
+          <h5>Resume upload is manual</h5>
+          <p>Browser security prevents extensions from setting file inputs. You still click "Upload resume" yourself.</p>
+        </div>
+      </div>
+      <div class="limit-item">
+        <div class="limit-icon">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+        </div>
+        <div>
+          <h5>No CAPTCHA solving</h5>
+          <p>CAPTCHAs are intentionally not bypassed. Fillr fills forms, not bots portals.</p>
+        </div>
+      </div>
+      <div class="limit-item">
+        <div class="limit-icon">
+          <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        </div>
+        <div>
+          <h5>Google Forms only (for now)</h5>
+          <p>Custom portals and third-party form builders are on the roadmap but not yet supported.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======= 7. INSTALL EXTENSION ======= -->
+<section class="install sec sec--alt" id="install">
+  <div class="container">
+    <div class="install-hdr">
+      <div class="sec-label">
+        <span class="beta-badge">Beta</span>
+        Install Extension
+      </div>
+      <h2 class="sec-title">Get Fillr for Chrome</h2>
+      <p class="sec-sub">
+        Fillr is currently in <strong>beta</strong> and not yet published on the Chrome Web Store.
+        Install it manually using the steps below � takes under 2 minutes.
+      </p>
+    </div>
+
+    <!-- Download button -->
+    <div class="install-download">
+      <a href="https://github.com/user-attachments/files/25466635/fillr-extension-v2.0.0-beta.zip" class="btn btn--blue btn--lg" download>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Download Extension (ZIP)
+      </a>
+      <span class="install-version">v2.0.0-beta &bull; ~50 KB &bull; Requires Chrome 88+</span>
+    </div>
+
+    <!-- Installation steps -->
+    <div class="install-steps">
+      <div class="install-step">
+        <div class="install-step-num">1</div>
+        <div class="install-step-body">
+          <h4>Download &amp; extract</h4>
+          <p>Download the ZIP file above and extract it to a folder on your computer. Remember the location.</p>
+        </div>
+      </div>
+      <div class="install-step">
+        <div class="install-step-num">2</div>
+        <div class="install-step-body">
+          <h4>Open Chrome Extensions</h4>
+          <p>Go to <code>chrome://extensions</code> in your browser, or click Menu ? Extensions ? Manage Extensions.</p>
+        </div>
+      </div>
+      <div class="install-step">
+        <div class="install-step-num">3</div>
+        <div class="install-step-body">
+          <h4>Enable Developer Mode</h4>
+          <p>Toggle <strong>"Developer mode"</strong> in the top-right corner of the extensions page.</p>
+        </div>
+      </div>
+      <div class="install-step">
+        <div class="install-step-num">4</div>
+        <div class="install-step-body">
+          <h4>Load unpacked</h4>
+          <p>Click <strong>"Load unpacked"</strong> and select the extracted folder. Fillr will appear in your extensions.</p>
+        </div>
+      </div>
+      <div class="install-step">
+        <div class="install-step-num">5</div>
+        <div class="install-step-body">
+          <h4>Pin to toolbar</h4>
+          <p>Click the puzzle icon in Chrome's toolbar and pin Fillr for quick access. Done!</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trust badges -->
+    <div class="install-trust">
+      <h4 class="install-trust-title">Why trust Fillr?</h4>
+      <div class="install-trust-grid">
+        <div class="trust-item">
+          <div class="trust-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+              <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+          </div>
+          <h5>100% open source</h5>
+          <p>All code is public on GitHub. Audit it yourself � nothing hidden.</p>
+        </div>
+        <div class="trust-item">
+          <div class="trust-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+            </svg>
+          </div>
+          <h5>No tracking</h5>
+          <p>Zero analytics, zero telemetry. We don't know what forms you fill.</p>
+        </div>
+        <div class="trust-item">
+          <div class="trust-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </div>
+          <h5>Secure authentication</h5>
+          <p>JWT tokens, bcrypt hashing, HTTPS only. Industry-standard security.</p>
+        </div>
+        <div class="trust-item">
+          <div class="trust-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+          </div>
+          <h5>No ads, ever</h5>
+          <p>Fillr is an engineering tool, not an ad platform. No ads, no upsells.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======= 8. CTA ======= -->
+<section class="cta">
+  <div class="container">
+    <div class="cta-inner">
+      <div class="sec-label">Get started</div>
+      <h2>One profile.<br>Every form.</h2>
+      <p>Create your Fillr profile in under 3 minutes. Every placement form after that fills in one click.</p>
+      <div class="hero-actions" style="justify-content:center;">
+        <a href="/register" class="btn btn--blue">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          Create free account
+        </a>
+        <a href="/login" class="btn btn--outline">Already have an account</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======= FOOTER ======= --> 
+<footer class="footer">
+  <div class="container">
+    <span class="footer-brand">Fillr<em>.</em></span>
+    <div class="footer-links">
+      <a href="#features">Features</a>
+      <a href="#arch">Architecture</a>
+      <a href="#install">Install</a>
+      <a href="/login">Login</a>
+      <a href="/terms">Terms</a>
+      <a href="/privacy">Privacy</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Auto-redirect if already logged in
+  if (localStorage.getItem('token')) {
+    window.location.href = '/dashboard';
+  }
+  // Mobile nav toggle
+  document.getElementById('navToggle').addEventListener('click', () => {
+    document.getElementById('navLinks').classList.toggle('open');
+  });
+</script>
+</body>
+</html>
+

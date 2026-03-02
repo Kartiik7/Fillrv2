@@ -1,0 +1,105 @@
+# netlify.toml — Netlify build & cache configuration for Fillr client
+#
+# Docs: https://docs.netlify.com/configure-builds/file-based-configuration/
+
+[build]
+  publish = "client"
+
+# ── Security headers ─────────────────────────────────────────
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options        = "DENY"
+    X-Content-Type-Options = "nosniff"
+    X-XSS-Protection       = "1; mode=block"
+    Referrer-Policy        = "strict-origin-when-cross-origin"
+    Permissions-Policy     = "geolocation=(), microphone=(), camera=()"
+
+# ── Static asset caching ─────────────────────────────────────
+# Versioned assets (CSS/JS): long-lived cache (1 year)
+[[headers]]
+  for = "/css/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/js/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Images/Icons: cache 30 days
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=2592000"
+
+# HTML pages: no cache (always fetch fresh so updates deploy instantly)
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+    Pragma        = "no-cache"
+    Expires       = "0"
+
+# ── Clean URL redirects ───────────────────────────────────────
+# Map clean URLs to .html pages (200 = rewrite, not redirect)
+[[redirects]]
+  from   = "/"
+  to     = "/pages/index.html"
+  status = 200
+
+[[redirects]]
+  from   = "/login"
+  to     = "/pages/login.html"
+  status = 200
+
+[[redirects]]
+  from   = "/register"
+  to     = "/pages/register.html"
+  status = 200
+
+[[redirects]]
+  from   = "/dashboard"
+  to     = "/pages/dashboard.html"
+  status = 200
+
+[[redirects]]
+  from   = "/admin"
+  to     = "/pages/admin.html"
+  status = 200
+
+[[redirects]]
+  from   = "/field-mappings"
+  to     = "/pages/fieldMappings.html"
+  status = 200
+
+[[redirects]]
+  from   = "/forgot-password"
+  to     = "/pages/forgot-password.html"
+  status = 200
+
+[[redirects]]
+  from   = "/reset-password"
+  to     = "/pages/reset-password.html"
+  status = 200
+
+[[redirects]]
+  from   = "/verify-email"
+  to     = "/pages/verify-email.html"
+  status = 200
+
+[[redirects]]
+  from   = "/terms"
+  to     = "/pages/terms.html"
+  status = 200
+
+[[redirects]]
+  from   = "/privacy"
+  to     = "/pages/privacy.html"
+  status = 200
+
+# Fallback for any other route (404 handling)
+[[redirects]]
+  from   = "/*"
+  to     = "/pages/index.html"
+  status = 404

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563EB"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Rounded square background -->
+  <rect x="4" y="4" width="120" height="120" rx="26" fill="url(#bg)"/>
+  
+  <!-- Document shape (white) -->
+  <path d="M38 20 L78 20 L94 36 L94 108 L38 108 Z" fill="#fff"/>
+  <!-- Folded corner -->
+  <path d="M78 20 L78 36 L94 36 Z" fill="#c7d2fe"/>
+  
+  <!-- Lightning bolt (speed/autofill) - bold, centered -->
+  <path d="M72 40 L54 68 L66 68 L58 92 L80 60 L68 60 L76 40 Z" fill="#7C3AED"/>
+  
+</svg>

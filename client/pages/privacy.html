@@ -1,0 +1,248 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy — Fillr</title>
+  <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+  <link rel="icon" type="image/png" href="../assets/favicon.png">
+  <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --blue: #2563eb; --dark: #0f172a; --text: #1e293b;
+      --muted: #64748b; --border: #e2e8f0; --bg: #f1f5f9; --surface: #fff;
+    }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; }
+
+    .legal-nav {
+      background: var(--dark); padding: 0 32px; height: 56px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .legal-nav-brand { color: #fff; font-weight: 800; font-size: 1.15rem; text-decoration: none; }
+    .legal-nav-brand .dot { color: var(--blue); }
+    .legal-nav-links { display: flex; gap: 24px; }
+    .legal-nav-links a { color: #94a3b8; font-size: .85rem; text-decoration: none; transition: color .15s; }
+    .legal-nav-links a:hover { color: #fff; }
+
+    .legal-hero {
+      background: var(--dark); padding: 48px 32px 40px;
+      text-align: center; color: #fff;
+    }
+    .legal-hero h1 { font-size: 2rem; font-weight: 800; margin-bottom: 8px; }
+    .legal-hero .meta { color: #94a3b8; font-size: .875rem; }
+
+    .legal-wrap { max-width: 780px; margin: 40px auto 0; padding: 0 24px 80px; }
+    .legal-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 48px 52px; }
+
+    .legal-section { margin-bottom: 36px; }
+    .legal-section:last-child { margin-bottom: 0; }
+    .legal-section h2 { font-size: 1.1rem; font-weight: 700; color: var(--dark); margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    .legal-section h3 { font-size: .95rem; font-weight: 600; color: var(--dark); margin: 16px 0 6px; }
+    .legal-section p { color: var(--text); font-size: .9rem; margin-bottom: 10px; }
+    .legal-section p:last-child { margin-bottom: 0; }
+    .legal-section ul { padding-left: 20px; margin: 8px 0 10px; }
+    .legal-section ul li { font-size: .9rem; color: var(--text); margin-bottom: 6px; }
+    .legal-section a { color: var(--blue); text-decoration: none; }
+    .legal-section a:hover { text-decoration: underline; }
+    .highlight-box {
+      background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px;
+      padding: 16px 20px; margin: 16px 0; font-size: .875rem; color: #1e40af;
+    }
+    .data-table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: .875rem; }
+    .data-table th { background: var(--bg); text-align: left; padding: 10px 12px; font-weight: 600; color: var(--dark); border: 1px solid var(--border); }
+    .data-table td { padding: 10px 12px; border: 1px solid var(--border); color: var(--text); vertical-align: top; }
+
+    .legal-footer {
+      border-top: 1px solid var(--border); margin-top: 40px;
+      padding: 28px 32px; text-align: center;
+      font-size: .82rem; color: var(--muted);
+    }
+    .legal-footer a { color: var(--muted); text-decoration: none; margin: 0 10px; }
+    .legal-footer a:hover { color: var(--blue); }
+
+    @media (max-width: 640px) {
+      .legal-card { padding: 28px 20px; }
+      .legal-hero h1 { font-size: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="legal-nav">
+    <a class="legal-nav-brand" href="/">Fillr<span class="dot">.</span></a>
+    <div class="legal-nav-links">
+      <a href="/login">Sign in</a>
+      <a href="/register">Register</a>
+    </div>
+  </nav>
+
+  <div class="legal-hero">
+    <h1>Privacy Policy</h1>
+    <p class="meta">Last updated: February 20, 2026 &nbsp;·&nbsp; Version 1.0</p>
+  </div>
+
+  <div class="legal-wrap">
+    <div class="legal-card">
+
+      <div class="highlight-box">
+        This Privacy Policy explains what personal data Fillr collects, why we collect it, how we use it, and what rights you have over your data. We are committed to handling your information transparently and responsibly.
+      </div>
+
+      <div class="legal-section">
+        <h2>1. Who We Are</h2>
+        <p>Fillr is a Chrome Extension and web application that helps students and job seekers autofill placement and academic application forms. We take data privacy seriously and are committed to complying with applicable data protection laws, including the General Data Protection Regulation (GDPR) where relevant.</p>
+        <p>For questions about this policy, please contact us through the project's official channels.</p>
+      </div>
+
+      <div class="legal-section">
+        <h2>2. What Data We Collect</h2>
+        <p>We collect only the data you explicitly provide when using Fillr. We do not collect data passively or from third-party sources.</p>
+
+        <h3>2.1 Account Data</h3>
+        <table class="data-table">
+          <thead>
+            <tr><th>Field</th><th>Purpose</th><th>Required?</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Email address</td><td>Account identification and login</td><td>Yes</td></tr>
+            <tr><td>Password (hashed)</td><td>Authentication — stored as bcrypt hash, never plaintext</td><td>Yes</td></tr>
+            <tr><td>Terms acceptance date</td><td>Legal compliance record</td><td>Automatic</td></tr>
+          </tbody>
+        </table>
+
+        <h3>2.2 Profile Data (PII)</h3>
+        <table class="data-table">
+          <thead>
+            <tr><th>Category</th><th>Fields</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Personal</td><td>Full name, phone number, date of birth, gender, permanent address, age</td></tr>
+            <tr><td>Academic</td><td>10th / 12th / diploma / graduation / PG percentages, CGPA, backlog status, gap months</td></tr>
+            <tr><td>Education</td><td>College name, program, branch/stream, graduation batch</td></tr>
+            <tr><td>IDs</td><td>University/college ID, roll number</td></tr>
+            <tr><td>Links</td><td>GitHub profile URL, LinkedIn URL, portfolio URL</td></tr>
+            <tr><td>Placement</td><td>Preferred job position</td></tr>
+          </tbody>
+        </table>
+        <p>All profile data is <strong>voluntarily submitted by you</strong> for the purpose of autofilling forms. You may leave fields empty at any time.</p>
+      </div>
+
+      <div class="legal-section">
+        <h2>3. How We Use Your Data</h2>
+        <p>We use your data strictly for the following purposes:</p>
+        <ul>
+          <li><strong>Autofill:</strong> Populate detected form fields in your browser with your stored profile data</li>
+          <li><strong>Authentication:</strong> Verify your identity when you log in or make API requests</li>
+          <li><strong>Account management:</strong> Allow you to view, edit, and delete your profile</li>
+          <li><strong>Security:</strong> Detect and prevent unauthorized access</li>
+          <li><strong>Legal compliance:</strong> Maintain records of terms acceptance as required by law</li>
+        </ul>
+        <p>We do <strong>not</strong> sell, lease, or share your personal data with any third parties. We do not use your data for advertising.</p>
+      </div>
+
+      <div class="legal-section">
+        <h2>4. Legal Basis for Processing</h2>
+        <p>Under GDPR, we rely on the following legal bases:</p>
+        <ul>
+          <li><strong>Contractual necessity:</strong> Processing your profile data is necessary to deliver the autofill service you requested</li>
+          <li><strong>Consent:</strong> You explicitly consent to our Terms and Privacy Policy at registration</li>
+          <li><strong>Legitimate interest:</strong> Security logging and fraud prevention</li>
+        </ul>
+      </div>
+
+      <div class="legal-section">
+        <h2>5. Data Storage &amp; Security</h2>
+        <h3>5.1 Where Data is Stored</h3>
+        <p>Your data is stored in a MongoDB Atlas database hosted on secure cloud infrastructure. All connections use TLS encryption in transit.</p>
+        <h3>5.2 Security Measures</h3>
+        <ul>
+          <li>Passwords are hashed using bcrypt (rounds: 10) — never stored in plaintext</li>
+          <li>API access is protected by JWT tokens with a 7-day expiry</li>
+          <li>All API endpoints are rate-limited to prevent brute-force attacks</li>
+          <li>Input validation prevents injection attacks (NoSQL injection, XSS)</li>
+          <li>The Chrome Extension stores your JWT in <code>chrome.storage.local</code>, which is not accessible to web pages</li>
+        </ul>
+        <h3>5.3 Retention</h3>
+        <p>Your data is retained for as long as your account is active. When you delete your account, all associated data is permanently and irreversibly deleted from our database with no backup retention.</p>
+      </div>
+
+      <div class="legal-section">
+        <h2>6. Chrome Extension &amp; Browser Data</h2>
+        <p>The Fillr Chrome Extension operates as follows:</p>
+        <ul>
+          <li><strong>Form scanning:</strong> The extension reads visible form fields on the current web page to detect labels and field types. It does not capture or transmit page content to our servers.</li>
+          <li><strong>Token storage:</strong> Your JWT is stored in <code>chrome.storage.local</code> — isolated from web page JavaScript and not accessible to websites you visit.</li>
+          <li><strong>API calls:</strong> Authenticated API calls are made through the background service worker, ensuring your token is never exposed to page scripts.</li>
+          <li><strong>No tracking:</strong> The extension does not track your browsing history or behaviour.</li>
+        </ul>
+      </div>
+
+      <div class="legal-section">
+        <h2>7. Your Rights</h2>
+        <p>You have the following rights regarding your personal data:</p>
+        <table class="data-table">
+          <thead>
+            <tr><th>Right</th><th>How to Exercise</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>Right of Access (Art. 15)</strong></td><td>Use the <code>GET /api/user/me</code> endpoint or contact us</td></tr>
+            <tr><td><strong>Right to Rectification (Art. 16)</strong></td><td>Edit your profile from the dashboard at any time</td></tr>
+            <tr><td><strong>Right to Erasure (Art. 17)</strong></td><td>Delete your account from the dashboard — permanently removes all data</td></tr>
+            <tr><td><strong>Right to Data Portability (Art. 20)</strong></td><td>Your profile data is available via the dashboard in structured form</td></tr>
+            <tr><td><strong>Right to Object</strong></td><td>Contact us — you may object to any processing not required for the core service</td></tr>
+          </tbody>
+        </table>
+        <p>To exercise any of these rights, use the dashboard controls or contact us directly. We will respond within 30 days.</p>
+      </div>
+
+      <div class="legal-section">
+        <h2>8. Cookies &amp; Tracking</h2>
+        <p>Fillr does <strong>not</strong> use cookies, analytics trackers, or third-party SDKs. We do not use Google Analytics, Facebook Pixel, or any similar tracking technology.</p>
+        <p>The web dashboard uses browser <code>localStorage</code> solely to store your authentication token for session persistence.</p>
+      </div>
+
+      <div class="legal-section">
+        <h2>9. Third Parties</h2>
+        <p>We use the following third-party services to operate Fillr:</p>
+        <ul>
+          <li><strong>MongoDB Atlas</strong> — Cloud database hosting (governed by their own privacy policy and DPA)</li>
+          <li><strong>Render.com</strong> — Backend hosting and deployment</li>
+          <li><strong>Google Fonts</strong> — Web fonts (loaded client-side; subject to Google's privacy policy)</li>
+        </ul>
+        <p>We do not share your personal data with any of these providers beyond what is operationally necessary.</p>
+      </div>
+
+      <div class="legal-section">
+        <h2>10. Children's Privacy</h2>
+        <p>Fillr is not directed at children under the age of 16. We do not knowingly collect personal data from users under 16. If you believe a minor has registered an account, please contact us so we can delete the data promptly.</p>
+      </div>
+
+      <div class="legal-section">
+        <h2>11. Changes to This Policy</h2>
+        <p>We may update this Privacy Policy from time to time. When we do, we will update the version number and date at the top of this page. Significant changes will be communicated to registered users via email.</p>
+        <p>Continued use of the Service after updates constitutes your acceptance of the revised policy.</p>
+      </div>
+
+      <div class="legal-section">
+        <h2>12. Contact Us</h2>
+        <p>If you have any questions, concerns, or data rights requests, please contact the Fillr team through the project's official GitHub repository or any other official communication channel listed there.</p>
+      </div>
+
+    </div>
+  </div>
+
+  <footer class="legal-footer">
+    &copy; 2026 Fillr &nbsp;&mdash;&nbsp;
+    <a href="/terms">Terms &amp; Conditions</a>
+    <a href="/privacy">Privacy Policy</a>
+    <a href="/">Home</a>
+  </footer>
+
+</body>
+</html>
+

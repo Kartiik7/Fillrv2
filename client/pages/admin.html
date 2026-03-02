@@ -1,0 +1,783 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard — Fillr</title>
+  <meta name="description" content="Fillr admin metrics and audit log dashboard">
+  <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+  <link rel="icon" type="image/png" href="../assets/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <script src="../env.js"></script>
+  <!-- Shared admin design system — must match dashboard.css, auth.css, landing.css -->
+  <link rel="stylesheet" href="../css/admin.css">
+  <style>
+    /* admin.html–specific layout: field-mappings quick-link card */
+    .adm-quicklinks {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 14px;
+      margin-bottom: 32px;
+    }
+    .adm-quicklink-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--blue);
+      border-radius: 10px;
+      padding: 18px 20px;
+      text-decoration: none;
+      display: block;
+      transition: box-shadow 0.2s, border-color 0.2s;
+    }
+    .adm-quicklink-card:hover {
+      box-shadow: 0 0 0 3px var(--blue-glow);
+      border-color: #bfdbfe;
+      text-decoration: none;
+    }
+    .adm-quicklink-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--dark);
+      margin-bottom: 3px;
+    }
+    .adm-quicklink-sub {
+      font-size: 0.76rem;
+      color: var(--muted);
+    }
+    /* Audit table rows — use adm-cell-time / adm-meta-json / adm-action-badge from admin.css */
+    .adm-table td.adm-cell-adminid {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+    .adm-table td.adm-cell-ip {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .adm-debug-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 24px;
+    }
+    .adm-debug-label {
+      display: block;
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: var(--dark);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .adm-debug-input {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 0.86rem;
+      color: var(--text);
+      background: var(--surface);
+      margin-bottom: 10px;
+    }
+    .adm-debug-input:focus {
+      outline: none;
+      border-color: #93c5fd;
+      box-shadow: 0 0 0 3px var(--blue-glow);
+    }
+    .adm-debug-result {
+      font-size: 0.8rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .adm-debug-result strong {
+      color: var(--dark);
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Nav (adm-nav from admin.css — matches .db-nav) ─────── -->
+  <nav class="adm-nav" role="navigation" aria-label="Admin navigation">
+    <div class="adm-nav-inner">
+      <span class="adm-brand">
+        Fillr<span class="dot">.</span><span class="tag">admin</span>
+      </span>
+      <div class="adm-nav-right">
+        <a class="adm-nav-link" href="/dashboard" aria-label="Go to user dashboard">&larr; Dashboard</a>
+        <span class="adm-nav-divider" aria-hidden="true"></span>
+        <button class="adm-signout-btn" id="signoutBtn" type="button">Sign out</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Main ─────────────────────────────────────────────────── -->
+  <main class="adm-container">
+
+    <!-- Error Banner -->
+    <div class="adm-error-banner" id="errorBanner" role="alert"></div>
+    <div class="adm-error-banner" id="healthAlert" role="alert">High API error rate detected today.</div>
+
+    <!-- Page Header -->
+    <div class="adm-page-hdr">
+      <div>
+        <h1 class="adm-page-title">Metrics &amp; Audit</h1>
+        <p class="adm-page-sub">System health and admin activity log</p>
+      </div>
+      <div class="adm-hdr-actions">
+        <button class="adm-btn adm-btn-ghost" id="refreshBtn" type="button" aria-label="Refresh data">
+          <span class="adm-btn-icon" aria-hidden="true">↻</span>
+          <span class="adm-spinner" aria-hidden="true"></span>
+          Refresh
+        </button>
+      </div>
+    </div>
+
+    <!-- Quick Links -->
+    <div class="adm-quicklinks">
+      <a class="adm-quicklink-card" href="/field-mappings">
+        <div class="adm-quicklink-title">⚙ Field Mappings</div>
+        <div class="adm-quicklink-sub">Manage autofill key → path mappings</div>
+      </a>
+    </div>
+
+    <!-- Mapping Debugger -->
+    <div class="adm-debug-card">
+      <div class="adm-section-title" style="margin-bottom:10px;">Mapping Debugger <span class="adm-section-badge">admin only</span></div>
+      <label class="adm-debug-label" for="mappingDebugInput">Field Label</label>
+      <input
+        id="mappingDebugInput"
+        class="adm-debug-input"
+        type="text"
+        autocomplete="off"
+        placeholder="Type a field label to test mapping quality"
+      >
+      <div class="adm-debug-result" id="mappingDebugResult">
+        Type to see top matched key, score, and confidence.
+      </div>
+    </div>
+
+    <!-- Recent Field Mapping Updates -->
+    <div class="adm-page-hdr">
+      <div>
+        <div class="adm-section-title">Recent Field Mapping Updates</div>
+        <p class="adm-page-sub">Latest 5 mapping changes</p>
+      </div>
+    </div>
+    <div class="adm-table-wrap">
+      <table class="adm-table" aria-label="Recent field mapping updates">
+        <thead>
+          <tr>
+            <th scope="col">Key</th>
+            <th scope="col">Path</th>
+            <th scope="col">Type</th>
+            <th scope="col">Updated At</th>
+          </tr>
+        </thead>
+        <tbody id="recentMappingsBody">
+          <tr><td colspan="4" class="adm-no-results">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Total Users -->
+    <div class="adm-metrics-grid">
+      <div class="adm-metric-card">
+        <div class="adm-metric-label">Total Users</div>
+        <div class="adm-metric-value" id="totalUsers">—</div>
+        <div class="adm-metric-sub">all registered accounts</div>
+      </div>
+      <div class="adm-metric-card">
+        <div class="adm-metric-label">Total Field Mappings</div>
+        <div class="adm-metric-value" id="totalFieldMappings">—</div>
+        <div class="adm-metric-sub">active mappings</div>
+      </div>
+    </div>
+
+    <!-- Daily Metrics -->
+    <div class="adm-section-title">
+      Daily
+      <span class="adm-section-badge">today</span>
+    </div>
+    <div class="adm-metrics-grid" id="dailyGrid">
+      <div class="adm-metric-card"><div class="adm-metric-label">Registrations</div><div class="adm-metric-value" id="dailyRegistrations">—</div></div>
+      <div class="adm-metric-card"><div class="adm-metric-label">Logins</div><div class="adm-metric-value" id="dailyLogins">—</div></div>
+      <div class="adm-metric-card"><div class="adm-metric-label">Extension Auths</div><div class="adm-metric-value" id="dailyExtAuth">—</div></div>
+      <div class="adm-metric-card"><div class="adm-metric-label">Password Resets</div><div class="adm-metric-value" id="dailyResets">—</div></div>
+      <div class="adm-metric-card"><div class="adm-metric-label">Errors</div><div class="adm-metric-value" id="dailyErrors">—</div></div>
+      <div class="adm-metric-card"><div class="adm-metric-label">Active Users</div><div class="adm-metric-value" id="dailyActive">—</div></div>
+    </div>
+
+    <!-- Weekly Metrics -->
+    <div class="adm-section-title">
+      Weekly
+      <span class="adm-section-badge">last 7 days</span>
+    </div>
+    <div class="adm-metrics-grid" id="weeklyGrid">
+      <div class="adm-metric-card"><div class="adm-metric-label">Registrations</div><div class="adm-metric-value" id="weeklyRegistrations">—</div></div>
+      <div class="adm-metric-card"><div class="adm-metric-label">Logins</div><div class="adm-metric-value" id="weeklyLogins">—</div></div>
+      <div class="adm-metric-card"><div class="adm-metric-label">Extension Auths</div><div class="adm-metric-value" id="weeklyExtAuth">—</div></div>
+      <div class="adm-metric-card"><div class="adm-metric-label">Password Resets</div><div class="adm-metric-value" id="weeklyResets">—</div></div>
+      <div class="adm-metric-card"><div class="adm-metric-label">Errors</div><div class="adm-metric-value" id="weeklyErrors">—</div></div>
+      <div class="adm-metric-card"><div class="adm-metric-label">Active Users</div><div class="adm-metric-value" id="weeklyActive">—</div></div>
+    </div>
+
+    <!-- Lifetime Metrics -->
+    <div class="adm-section-title">
+      Total
+      <span class="adm-section-badge">lifetime</span>
+    </div>
+    <div class="adm-metrics-grid" id="totalGrid">
+      <div class="adm-metric-card"><div class="adm-metric-label">Registrations</div><div class="adm-metric-value" id="totalRegistrations">—</div></div>
+      <div class="adm-metric-card"><div class="adm-metric-label">Logins</div><div class="adm-metric-value" id="totalLogins">—</div></div>
+      <div class="adm-metric-card"><div class="adm-metric-label">Extension Auths</div><div class="adm-metric-value" id="totalExtAuth">—</div></div>
+      <div class="adm-metric-card"><div class="adm-metric-label">Password Resets</div><div class="adm-metric-value" id="totalResets">—</div></div>
+      <div class="adm-metric-card"><div class="adm-metric-label">Errors</div><div class="adm-metric-value" id="totalErrors">—</div></div>
+    </div>
+
+    <!-- System Health -->
+    <div class="adm-section-title">
+      System Health
+      <span class="adm-section-badge">today</span>
+    </div>
+    <div class="adm-metrics-grid" id="systemHealthGrid">
+      <div class="adm-metric-card">
+        <div class="adm-metric-label">Error Rate (Today %)</div>
+        <div class="adm-metric-value" id="errorRateToday">0.00%</div>
+      </div>
+      <div class="adm-metric-card">
+        <div class="adm-metric-label">Last API Error Timestamp</div>
+        <div class="adm-metric-value" id="lastApiErrorAt">No errors today</div>
+      </div>
+      <div class="adm-metric-card">
+        <div class="adm-metric-label">Backend Status Indicator</div>
+        <div class="adm-metric-value" id="backendStatus">🔴 Offline</div>
+      </div>
+      <div class="adm-metric-card">
+        <div class="adm-metric-label">Extension Version</div>
+        <div class="adm-metric-value" id="extensionVersion">Current Version: v2.0.0</div>
+      </div>
+    </div>
+
+    <!-- Security Summary -->
+    <div class="adm-page-hdr">
+      <div>
+        <div class="adm-section-title">Security &amp; Access Control</div>
+      </div>
+      <div class="adm-hdr-actions">
+        <a class="adm-btn adm-btn-ghost" href="/admin#recentAdminActivity">View Audit Logs</a>
+      </div>
+    </div>
+    <div class="adm-metrics-grid" id="securityGrid">
+      <div class="adm-metric-card">
+        <div class="adm-metric-label">Active Admin Count</div>
+        <div class="adm-metric-value" id="activeAdminCount">—</div>
+      </div>
+      <div class="adm-metric-card">
+        <div class="adm-metric-label">Total Secret Keys Issued</div>
+        <div class="adm-metric-value" id="totalSecretKeysIssued">—</div>
+      </div>
+      <div class="adm-metric-card">
+        <div class="adm-metric-label">Revoked Secret Keys Count</div>
+        <div class="adm-metric-value" id="revokedSecretKeysCount">—</div>
+      </div>
+      <div class="adm-metric-card">
+        <div class="adm-metric-label">Suspicious Auth Attempts</div>
+        <div class="adm-metric-value" id="suspiciousAuthAttempts">Not Tracked</div>
+      </div>
+    </div>
+
+    <!-- Recent Admin Activity -->
+    <div class="adm-page-hdr" id="recentAdminActivity">
+      <div>
+        <div class="adm-section-title">
+          Recent Admin Activity
+          <span class="adm-section-badge" id="recentAuditCount">0</span>
+        </div>
+      </div>
+      <div class="adm-hdr-actions">
+        <a class="adm-btn adm-btn-ghost" href="/admin#recentAdminActivity">View Full Audit Log</a>
+      </div>
+    </div>
+    <div class="adm-table-wrap">
+      <table class="adm-table" aria-label="Recent admin activity">
+        <thead>
+          <tr>
+            <th scope="col">Action</th>
+            <th scope="col">Timestamp</th>
+          </tr>
+        </thead>
+        <tbody id="recentAuditBody">
+          <tr><td colspan="2" class="adm-no-results">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="adm-section-title">
+      Quick Actions
+      <span class="adm-section-badge">admin</span>
+    </div>
+    <div class="adm-metrics-grid" id="quickActionsPanel">
+      <div class="adm-metric-card">
+        <button class="adm-btn adm-btn-ghost" id="qaFieldMappings" type="button">Add New Mapping</button>
+      </div>
+      <div class="adm-metric-card">
+        <button class="adm-btn adm-btn-ghost" id="qaViewLogs" type="button">View Logs</button>
+      </div>
+      <div class="adm-metric-card">
+        <button class="adm-btn adm-btn-ghost" id="qaRefreshMetrics" type="button">
+          <span class="adm-btn-icon" aria-hidden="true">↻</span>
+          <span class="adm-spinner" aria-hidden="true"></span>
+          Refresh Metrics
+        </button>
+      </div>
+      <div class="adm-metric-card">
+        <button class="adm-btn adm-btn-ghost" id="qaRevokeKey" type="button">Revoke Secret Key</button>
+      </div>
+      <div class="adm-metric-card">
+        <button class="adm-btn adm-btn-ghost" id="qaSuspendUser" type="button">Suspend User</button>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    /* eslint-disable */
+    'use strict';
+
+    /* ── Config ────────────────────────────────────────────── */
+    const API    = (typeof ENV !== 'undefined' && ENV.API_URL) ? ENV.API_URL : 'http://localhost:5000/api';
+    const HEALTH_URL = API.replace(/\/api\/?$/, '') + '/health';
+    const _token = localStorage.getItem('fillr_token');
+    const FM_CHANGE_KEY = 'fillr:fm-last-change';
+
+    /* ── Auth Gate ──────────────────────────────────────────── */
+    if (!_token) window.location.replace('/login');
+
+    /* ── State ──────────────────────────────────────────────── */
+    let isLoading = false;
+
+    /* ── DOM Refs ───────────────────────────────────────────── */
+    const $$ = (id) => document.getElementById(id);
+    const refreshBtn  = $$('refreshBtn');
+    const errorBanner = $$('errorBanner');
+    const healthAlert = $$('healthAlert');
+    const recentAuditBody = $$('recentAuditBody');
+    const mappingDebugInput = $$('mappingDebugInput');
+    const mappingDebugResult = $$('mappingDebugResult');
+    const recentMappingsBody = $$('recentMappingsBody');
+
+    /* ── XSS Helpers ────────────────────────────────────────── */
+    function escHtml(str) {
+      const d = document.createElement('div');
+      d.textContent = String(str == null ? '' : str);
+      return d.innerHTML;
+    }
+
+    /* ── API Fetch ──────────────────────────────────────────── */
+    async function apiFetch(path, options = {}) {
+      const reqOptions = { method: 'GET', ...options };
+      const headers = { Authorization: `Bearer ${_token}`, ...(reqOptions.headers || {}) };
+      if (reqOptions.body && typeof reqOptions.body !== 'string') {
+        headers['Content-Type'] = 'application/json';
+        reqOptions.body = JSON.stringify(reqOptions.body);
+      }
+      reqOptions.headers = headers;
+
+      const res = await fetch(`${API}${path}`, reqOptions);
+      if (res.status === 401) {
+        localStorage.removeItem('fillr_token');
+        window.location.replace('/login');
+        throw new Error('Unauthorized');
+      }
+      if (res.status === 403) {
+        showError('Access Denied');
+        throw new Error('Forbidden');
+      }
+      if (res.status >= 500) {
+        showError('Server Error');
+        throw new Error('ServerError');
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    }
+
+    /* ── Error Banner ───────────────────────────────────────── */
+    function showError(msg) {
+      errorBanner.textContent = msg;
+      errorBanner.classList.add('show');
+    }
+    function hideError() {
+      errorBanner.classList.remove('show');
+    }
+    function showHealthAlert() {
+      healthAlert.classList.add('show');
+    }
+    function hideHealthAlert() {
+      healthAlert.classList.remove('show');
+    }
+
+    /* ── Utilities ──────────────────────────────────────────── */
+    function formatTime(iso) {
+      if (!iso) return 'No errors today';
+      try {
+        return new Date(iso).toLocaleString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false,
+        });
+      } catch (_) { return '—'; }
+    }
+
+    function setActionLoading(loading) {
+      const actionButtons = document.querySelectorAll('#quickActionsPanel .adm-btn');
+      actionButtons.forEach(btn => { btn.disabled = loading; });
+      const qaRefresh = $$('qaRefreshMetrics');
+      if (loading) {
+        qaRefresh.classList.add('loading');
+      } else {
+        qaRefresh.classList.remove('loading');
+      }
+    }
+    function showMessage(msg) {
+      showError(msg);
+      setTimeout(() => {
+        if (errorBanner.textContent === msg) hideError();
+      }, 2500);
+    }
+
+    function debounce(fn, wait = 250) {
+      let timer = null;
+      return (...args) => {
+        window.clearTimeout(timer);
+        timer = window.setTimeout(() => fn(...args), wait);
+      };
+    }
+
+    function deriveMappingType(path) {
+      const first = String(path || '').split('.')[0] || '';
+      const cleaned = first.replace(/[_-]+/g, ' ').trim();
+      if (!cleaned) return 'Mapping';
+      return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+    }
+
+    async function runMappingDebug(label) {
+      const raw = String(label || '').trim();
+      if (!raw) {
+        mappingDebugResult.textContent = 'Type to see top matched key, score, and confidence.';
+        return;
+      }
+
+      try {
+        mappingDebugResult.textContent = 'Scoring...';
+        const data = await apiFetch(`/admin/mappings/debug-match?label=${encodeURIComponent(raw)}`);
+        const matchedKey = data.topMatch || 'No match';
+        const score = Number(data.score || 0);
+        const confidence = Number(data.confidence || 0).toFixed(2);
+
+        mappingDebugResult.innerHTML = `
+          <div><strong>Top Matched Key:</strong> ${escHtml(matchedKey)}</div>
+          <div><strong>Score:</strong> ${escHtml(String(score))}</div>
+          <div><strong>Confidence %:</strong> ${escHtml(String(confidence))}%</div>
+        `;
+      } catch (err) {
+        if (!['Unauthorized', 'Forbidden', 'ServerError'].includes(err.message)) {
+          mappingDebugResult.textContent = 'Failed to run mapping debug.';
+        }
+      }
+    }
+
+    const debouncedMappingDebug = debounce(runMappingDebug, 220);
+
+    /* ── Load Existing Metrics ──────────────────────────────── */
+    async function loadMetrics() {
+      try {
+        const data = await apiFetch('/admin/metrics/summary');
+
+        $$('dailyRegistrations').textContent = data.daily.registrations;
+        $$('dailyLogins').textContent        = data.daily.logins;
+        $$('dailyExtAuth').textContent       = data.daily.extensionAuth;
+        $$('dailyResets').textContent        = data.daily.passwordResets;
+        $$('dailyErrors').textContent        = data.daily.errors;
+        $$('dailyActive').textContent        = data.daily.activeUsers;
+
+        $$('weeklyRegistrations').textContent = data.weekly.registrations;
+        $$('weeklyLogins').textContent        = data.weekly.logins;
+        $$('weeklyExtAuth').textContent       = data.weekly.extensionAuth;
+        $$('weeklyResets').textContent        = data.weekly.passwordResets;
+        $$('weeklyErrors').textContent        = data.weekly.errors;
+        $$('weeklyActive').textContent        = data.weekly.activeUsers;
+
+        $$('totalRegistrations').textContent = data.total.registrations;
+        $$('totalLogins').textContent        = data.total.logins;
+        $$('totalExtAuth').textContent       = data.total.extensionAuth;
+        $$('totalResets').textContent        = data.total.passwordResets;
+        $$('totalErrors').textContent        = data.total.errors;
+        $$('totalUsers').textContent         = data.totalUsers;
+      } catch (err) {
+        if (!['Unauthorized', 'Forbidden', 'ServerError'].includes(err.message)) {
+          showError('Failed to load metrics.');
+        }
+      }
+    }
+
+    /* ── Load Field Mapping Count ─────────────────────────── */
+    async function loadFieldMappingCount() {
+      try {
+        const res = await apiFetch('/admin/field-mappings');
+        const mappings = Array.isArray(res.mappings) ? res.mappings : [];
+        $$('totalFieldMappings').textContent = mappings.length;
+      } catch (err) {
+        if (!['Unauthorized', 'Forbidden', 'ServerError'].includes(err.message)) {
+          $$('totalFieldMappings').textContent = '—';
+        }
+      }
+    }
+
+    /* ── Load System Health ─────────────────────────────────── */
+    async function loadSystemHealth() {
+      try {
+        const res = await apiFetch('/admin/system-health');
+        const data = res.data || {};
+        const numericRate = Number(data.errorRateToday || 0);
+        $$('errorRateToday').textContent = `${numericRate.toFixed(2)}%`;
+        $$('lastApiErrorAt').textContent = data.lastApiErrorTimestamp
+          ? formatTime(data.lastApiErrorTimestamp)
+          : 'No errors today';
+
+        if (numericRate > 5) {
+          showHealthAlert();
+        } else {
+          hideHealthAlert();
+        }
+      } catch (err) {
+        if (!['Unauthorized', 'Forbidden', 'ServerError'].includes(err.message)) {
+          showError('Failed to load system health.');
+        }
+      }
+    }
+
+    /* ── Recent Field Mapping Updates ───────────────────────── */
+    async function loadRecentFieldMappings() {
+      if (!recentMappingsBody) return;
+      try {
+        const res = await apiFetch('/admin/field-mappings');
+        const mappings = Array.isArray(res.mappings) ? res.mappings : [];
+
+        const sorted = [...mappings].sort((a, b) => {
+          const ta = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+          const tb = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+          if (tb === ta) return String(a.key || '').localeCompare(String(b.key || ''));
+          return tb - ta;
+        }).slice(0, 5);
+
+        if (sorted.length === 0) {
+          recentMappingsBody.innerHTML = '<tr><td colspan="4" class="adm-no-results">No mappings found.</td></tr>';
+          return;
+        }
+
+        recentMappingsBody.innerHTML = sorted.map(m => `
+          <tr>
+            <td>${escHtml(m.key || '—')}</td>
+            <td>${escHtml(m.path || '—')}</td>
+            <td>${escHtml(deriveMappingType(m.path))}</td>
+            <td class="adm-cell-time">${m.updatedAt ? escHtml(formatTime(m.updatedAt)) : '—'}</td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        if (!['Unauthorized', 'Forbidden', 'ServerError'].includes(err.message)) {
+          recentMappingsBody.innerHTML = '<tr><td colspan="4" class="adm-no-results">Failed to load mappings.</td></tr>';
+        }
+      }
+    }
+
+    /* ── Load Backend Status (once on page load) ───────────── */
+    async function loadBackendStatus() {
+      try {
+        const response = await fetch(HEALTH_URL);
+        if (response.ok) {
+          $$('backendStatus').textContent = '🟢 Online';
+        } else {
+          $$('backendStatus').textContent = '🔴 Offline';
+        }
+      } catch (_) {
+        $$('backendStatus').textContent = '🔴 Offline';
+      }
+    }
+
+    /* ── Load Extension Version ─────────────────────────────── */
+    async function loadExtensionVersion() {
+      try {
+        const res = await apiFetch('/admin/config/version');
+        const version = (res.data && res.data.version) ? res.data.version : 'v2.0.0';
+        $$('extensionVersion').textContent = `Current Version: ${version}`;
+      } catch (err) {
+        if (!['Unauthorized', 'Forbidden', 'ServerError'].includes(err.message)) {
+          $$('extensionVersion').textContent = 'Current Version: Unavailable';
+        }
+      }
+    }
+
+    /* ── Load Security Summary ──────────────────────────────── */
+    async function loadSecuritySummary() {
+      try {
+        const res = await apiFetch('/admin/security-summary');
+        const data = res.data || {};
+        $$('activeAdminCount').textContent = data.activeAdminCount ?? 0;
+        $$('totalSecretKeysIssued').textContent = data.totalSecretKeysIssued ?? 0;
+        $$('revokedSecretKeysCount').textContent = data.revokedSecretKeysCount ?? 0;
+        $$('suspiciousAuthAttempts').textContent = data.suspiciousAuthAttemptsTracked
+          ? String(data.suspiciousAuthAttempts || 0)
+          : 'Not Tracked';
+      } catch (err) {
+        if (!['Unauthorized', 'Forbidden', 'ServerError'].includes(err.message)) {
+          showError('Failed to load security summary.');
+        }
+      }
+    }
+
+    /* ── Load Recent Activity ───────────────────────────────── */
+    async function loadRecentActivity() {
+      try {
+        const res = await apiFetch('/admin/audit?limit=5');
+        const items = (res.data && Array.isArray(res.data.items)) ? res.data.items : [];
+        $$('recentAuditCount').textContent = items.length;
+        if (items.length === 0) {
+          recentAuditBody.innerHTML = '<tr><td colspan="2" class="adm-no-results">No recent admin activity.</td></tr>';
+          return;
+        }
+
+        recentAuditBody.innerHTML = items.map(item => `
+          <tr>
+            <td><span class="adm-action-badge">${escHtml(item.action || '—')}</span></td>
+            <td class="adm-cell-time">${escHtml(formatTime(item.createdAt))}</td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        if (!['Unauthorized', 'Forbidden', 'ServerError'].includes(err.message)) {
+          recentAuditBody.innerHTML = '<tr><td colspan="2" class="adm-no-results">Failed to load activity.</td></tr>';
+        }
+      }
+    }
+    async function runQuickAction(buttonId, action) {
+      if (isLoading) return;
+      const btn = $$(buttonId);
+      if (!btn) return;
+      btn.disabled = true;
+      try {
+        await action();
+      } finally {
+        btn.disabled = false;
+      }
+    }
+    async function suspendUserQuickAction() {
+      const raw = window.prompt('Enter exact user email or user ID');
+      if (!raw) return;
+      const query = raw.trim().toLowerCase();
+      if (!query) return;
+
+      let page = 1;
+      let found = null;
+      const maxPages = 20;
+
+      while (page <= maxPages && !found) {
+        const data = await apiFetch(`/admin/users?page=${page}&limit=50`);
+        const users = Array.isArray(data.users) ? data.users : [];
+        found = users.find((u) => {
+          const email = String(u.email || '').toLowerCase();
+          const id = String(u._id || '').toLowerCase();
+          return email === query || id === query;
+        }) || null;
+
+        const totalPages = Number(data.totalPages || 1);
+        if (found || page >= totalPages) break;
+        page += 1;
+      }
+
+      if (!found) {
+        showMessage('User not found. Enter exact email or user ID.');
+        return;
+      }
+
+      const willSuspend = !Boolean(found.isSuspended);
+      const actionText = willSuspend ? 'suspend' : 'unsuspend';
+      if (!window.confirm(`Do you want to ${actionText} ${found.email}?`)) return;
+
+      const resp = await apiFetch(`/admin/users/${encodeURIComponent(found._id)}/suspend`, {
+        method: 'PATCH',
+      });
+      showMessage(resp.message || `User ${actionText}ed successfully.`);
+    }
+
+    /* ── Refresh All Metrics ────────────────────────────────── */
+    async function refreshAll() {
+      if (isLoading) return;
+      isLoading = true;
+      hideError();
+      hideHealthAlert();
+      refreshBtn.disabled = true;
+      refreshBtn.classList.add('loading');
+      setActionLoading(true);
+
+      await Promise.all([
+        loadMetrics(),
+        loadFieldMappingCount(),
+        loadSystemHealth(),
+        loadExtensionVersion(),
+        loadSecuritySummary(),
+        loadRecentActivity(),
+        loadRecentFieldMappings(),
+      ]);
+
+      refreshBtn.classList.remove('loading');
+      refreshBtn.disabled = false;
+      setActionLoading(false);
+      isLoading = false;
+    }
+
+    /* ── Events ─────────────────────────────────────────────── */
+    refreshBtn.addEventListener('click', refreshAll);
+    $$('qaRefreshMetrics').addEventListener('click', () => runQuickAction('qaRefreshMetrics', refreshAll));
+    $$('qaFieldMappings').addEventListener('click', () => {
+      window.location.href = '/field-mappings?create=1';
+    });
+    $$('qaViewLogs').addEventListener('click', () => runQuickAction('qaViewLogs', async () => {
+      await loadRecentActivity();
+      const block = $$('recentAdminActivity');
+      if (block && typeof block.scrollIntoView === 'function') {
+        block.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }));
+    $$('qaRevokeKey').addEventListener('click', () => {
+      window.location.href = '/dashboard#keysSection';
+    });
+    $$('qaSuspendUser').addEventListener('click', () => runQuickAction('qaSuspendUser', suspendUserQuickAction));
+    mappingDebugInput.addEventListener('input', (e) => debouncedMappingDebug(e.target.value));
+    $$('signoutBtn').addEventListener('click', () => {
+      localStorage.removeItem('fillr_token');
+      window.location.replace('/login');
+    });
+
+    window.addEventListener('storage', (event) => {
+      if (event.key === FM_CHANGE_KEY) {
+        loadFieldMappingCount();
+        loadRecentFieldMappings();
+      }
+    });
+
+    /* ── Init ───────────────────────────────────────────────── */
+    loadBackendStatus();
+    refreshAll();
+  </script>
+</body>
+</html>
+

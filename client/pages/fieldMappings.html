@@ -1,0 +1,380 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Field Mappings — Fillr Admin</title>
+  <meta name="description" content="Admin panel for managing Fillr field mappings">
+  <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+  <link rel="icon" type="image/png" href="../assets/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <script src="../env.js"></script>
+  <!-- Shared admin design system — must match dashboard.css, auth.css, landing.css -->
+  <link rel="stylesheet" href="../css/admin.css">
+  <link rel="stylesheet" href="../css/fieldMappings.css">
+</head>
+<body>
+
+  <!-- ── Nav (same structure as .db-nav in dashboard) ──────── -->
+  <nav class="adm-nav" role="navigation" aria-label="Admin navigation">
+    <div class="adm-nav-inner">
+      <span class="adm-brand">
+        Fillr<span class="dot">.</span><span class="tag">admin</span>
+      </span>
+      <div class="adm-nav-right">
+        <a class="adm-nav-link" href="/admin" aria-label="Back to Admin Dashboard">&larr; Dashboard</a>
+        <span class="adm-nav-divider" aria-hidden="true"></span>
+        <button class="adm-signout-btn" id="signoutBtn" type="button">Sign out</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Toast ─────────────────────────────────────────────── -->
+  <div id="toast" class="adm-toast" role="alert" aria-live="polite" aria-atomic="true">
+    <span class="adm-toast-icon" id="toastIcon" aria-hidden="true"></span>
+    <span id="toastMsg"></span>
+  </div>
+
+  <!-- ── Access Denied ──────────────────────────────────────── -->
+  <div class="adm-access-denied" id="accessDenied" hidden>
+    <div class="adm-access-icon" aria-hidden="true">🔒</div>
+    <h1 class="adm-access-title">Access Denied</h1>
+    <p class="adm-access-sub">Your account does not have admin privileges.</p>
+    <a class="adm-btn adm-btn-primary" href="/dashboard">Back to Dashboard</a>
+  </div>
+
+  <!-- ── Main ──────────────────────────────────────────────── -->
+  <main class="adm-container" id="mainContent">
+
+    <!-- Error Banner -->
+    <div class="adm-error-banner" id="errorBanner" role="alert"></div>
+
+    <!-- Page Header -->
+    <div class="adm-page-hdr">
+      <div>
+        <h1 class="adm-page-title">
+          Field Mappings
+          <span class="adm-version-badge" id="configVersion"></span>
+        </h1>
+        <p class="adm-page-sub">Manage how the extension maps form labels to profile fields.</p>
+      </div>
+      <div class="adm-hdr-actions">
+        <button class="adm-btn adm-btn-ghost" id="refreshBtn" type="button" aria-label="Refresh mappings">
+          <span class="adm-btn-icon" id="refreshIcon" aria-hidden="true">↻</span>
+          <span class="adm-spinner" aria-hidden="true"></span>
+          Refresh
+        </button>
+        <button class="adm-btn adm-btn-primary" id="addBtn" type="button" aria-label="Add new field mapping">
+          + Add Mapping
+        </button>
+      </div>
+    </div>
+
+    <!-- Stat Bar -->
+    <div class="adm-stat-bar" id="statBar">
+      <span id="totalCountStat">
+        <span class="adm-stat-val" id="totalCountVal">—</span>
+        <span> mappings</span>
+      </span>
+      <span class="adm-stat-sep" aria-hidden="true">·</span>
+      <span>Last updated: <span class="adm-stat-val" id="lastUpdatedVal">—</span></span>
+    </div>
+
+    <!-- Recent Mappings -->
+    <div class="fm-recent-card" id="recentMappingsCard" aria-live="polite">
+      <div class="fm-recent-header">
+        <div class="adm-section-title fm-recent-title">Recent Mappings</div>
+        <span class="fm-recent-count" id="recentMappingsCount">0</span>
+      </div>
+      <div class="fm-recent-list" id="recentMappingsList">
+        <div class="fm-recent-empty">No mappings yet.</div>
+      </div>
+    </div>
+
+    <!-- Search -->
+    <div class="adm-search-row">
+      <div class="adm-search-wrap">
+        <span class="adm-search-icon" aria-hidden="true">⌕</span>
+        <input
+          type="search"
+          class="adm-search-input"
+          id="searchInput"
+          placeholder="Search by key, path or keyword (any category)…"
+          aria-label="Filter field mappings"
+          autocomplete="off"
+          spellcheck="false"
+        >
+        <button class="adm-search-clear" id="searchClear" type="button" aria-label="Clear search" hidden>✕</button>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="adm-table-wrap" id="tableWrap" role="region" aria-label="Field mappings table" aria-live="polite">
+      <!-- Loading skeleton -->
+      <div class="adm-tbl-loading" id="tableLoading">
+        <div class="adm-skeleton-row"></div>
+        <div class="adm-skeleton-row"></div>
+        <div class="adm-skeleton-row"></div>
+        <div class="adm-skeleton-row"></div>
+      </div>
+
+      <!-- Actual table -->
+      <table class="adm-table" id="fmTable" hidden aria-label="Field mappings list">
+        <thead>
+          <tr>
+            <th scope="col" style="width:16%">Key</th>
+            <th scope="col" style="width:18%">Path</th>
+            <th scope="col" style="width:80px">Type</th>
+            <th scope="col">Keywords</th>
+            <th scope="col" style="width:130px">Updated</th>
+            <th scope="col" style="width:120px">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="fmBody"></tbody>
+      </table>
+
+      <!-- Empty state -->
+      <div class="adm-empty" id="emptyState" hidden>
+        <div class="adm-empty-icon" aria-hidden="true">🗂</div>
+        <p class="adm-empty-title">No field mappings yet.</p>
+        <p class="adm-empty-sub">Click <strong>+ Add Mapping</strong> to create the first one.</p>
+      </div>
+
+      <!-- No results from search -->
+      <div class="adm-no-results" id="noResults" hidden>
+        No mappings match your search.
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!--  EDIT / CREATE MODAL                                   -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <div class="adm-modal-backdrop" id="mappingModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="adm-modal">
+      <div class="adm-modal-hdr">
+        <h2 class="adm-modal-title" id="modalTitle">Add Mapping</h2>
+        <button class="adm-modal-close" id="modalClose" type="button" aria-label="Close modal">✕</button>
+      </div>
+
+      <form class="adm-modal-body" id="mappingForm" novalidate autocomplete="off" style="max-height:80vh;overflow-y:auto;padding-right:4px;">
+
+        <!-- Key -->
+        <div class="adm-field" id="keyField">
+          <label class="adm-field-label" for="inputKey">
+            Key <span class="req" aria-hidden="true">*</span>
+          </label>
+          <input
+            type="text"
+            class="adm-field-input"
+            id="inputKey"
+            name="key"
+            placeholder="e.g. full_name"
+            maxlength="40"
+            autocomplete="off"
+            spellcheck="false"
+            aria-describedby="keyHint keyError"
+            aria-required="true"
+          >
+          <p class="adm-field-hint" id="keyHint">
+            Letters, numbers, dots, underscores, hyphens only. Max 40 chars.
+            <span class="adm-char-count" id="keyCount">0 / 40</span>
+          </p>
+          <p class="adm-field-error" id="keyError" role="alert" hidden></p>
+        </div>
+
+        <!-- Path -->
+        <div class="adm-field">
+          <label class="adm-field-label" for="inputPath">
+            Path <span class="req" aria-hidden="true">*</span>
+          </label>
+          <input
+            type="text"
+            class="adm-field-input"
+            id="inputPath"
+            name="path"
+            placeholder="e.g. profile.academics.cgpa"
+            maxlength="100"
+            autocomplete="off"
+            spellcheck="false"
+            aria-describedby="pathHint pathError"
+            aria-required="true"
+          >
+          <p class="adm-field-hint" id="pathHint">Dot-notation path to the user profile field.</p>
+          <p class="adm-field-error" id="pathError" role="alert" hidden></p>
+        </div>
+
+        <!-- Field Type -->
+        <div class="adm-field">
+          <label class="adm-field-label" for="inputFieldType">
+            Field Type
+          </label>
+          <select class="adm-field-input adm-field-select" id="inputFieldType" name="fieldType">
+            <option value="text">Text</option>
+            <option value="number">Number</option>
+            <option value="date">Date</option>
+            <option value="email">Email</option>
+            <option value="tel">Phone</option>
+            <option value="url">URL</option>
+            <option value="textarea">Textarea</option>
+            <option value="select">Select / Dropdown</option>
+          </select>
+          <p class="adm-field-hint">How this field renders on the user dashboard.</p>
+        </div>
+
+        <!-- Keywords grid (2 × 2) -->
+        <div class="adm-kw-grid">
+
+        <!-- Keywords: Primary -->
+        <div class="adm-field adm-kw-section adm-kw-primary">
+          <label class="adm-field-label" for="inputPrimary">
+            <span class="adm-kw-cat-dot adm-kw-dot-primary" aria-hidden="true"></span>
+            Primary Keywords <span class="req" aria-hidden="true">*</span>
+          </label>
+          <div class="adm-tags-wrap" id="tagsWrapPrimary" role="listbox" aria-label="Primary keywords"></div>
+          <input
+            type="text"
+            class="adm-field-input"
+            id="inputPrimary"
+            name="primary"
+            placeholder="High-confidence label (e.g. &quot;university roll number&quot;)"
+            maxlength="100"
+            autocomplete="off"
+            spellcheck="false"
+            data-category="primary"
+            aria-describedby="primaryHint primaryError"
+            aria-required="true"
+          >
+          <p class="adm-field-hint" id="primaryHint">
+            Strong, specific labels. Press <kbd>Enter</kbd> or <kbd>,</kbd> to add. Max 30.
+            <span class="adm-char-count" id="primaryCount">0 / 30</span>
+          </p>
+          <p class="adm-field-error" id="primaryError" role="alert" hidden></p>
+        </div>
+
+        <!-- Keywords: Secondary -->
+        <div class="adm-field adm-kw-section adm-kw-secondary">
+          <label class="adm-field-label" for="inputSecondary">
+            <span class="adm-kw-cat-dot adm-kw-dot-secondary" aria-hidden="true"></span>
+            Secondary Keywords
+          </label>
+          <div class="adm-tags-wrap" id="tagsWrapSecondary" role="listbox" aria-label="Secondary keywords"></div>
+          <input
+            type="text"
+            class="adm-field-input"
+            id="inputSecondary"
+            name="secondary"
+            placeholder="Moderate-confidence patterns (e.g. &quot;university id&quot;)"
+            maxlength="100"
+            autocomplete="off"
+            spellcheck="false"
+            data-category="secondary"
+            aria-describedby="secondaryHint secondaryError"
+          >
+          <p class="adm-field-hint" id="secondaryHint">
+            Moderate-confidence patterns. Max 20.
+            <span class="adm-char-count" id="secondaryCount">0 / 20</span>
+          </p>
+          <p class="adm-field-error" id="secondaryError" role="alert" hidden></p>
+        </div>
+
+        <!-- Keywords: Generic -->
+        <div class="adm-field adm-kw-section adm-kw-generic">
+          <label class="adm-field-label" for="inputGeneric">
+            <span class="adm-kw-cat-dot adm-kw-dot-generic" aria-hidden="true"></span>
+            Generic Keywords
+          </label>
+          <div class="adm-tags-wrap" id="tagsWrapGeneric" role="listbox" aria-label="Generic keywords"></div>
+          <input
+            type="text"
+            class="adm-field-input"
+            id="inputGeneric"
+            name="generic"
+            placeholder="Low-specificity fallback (e.g. &quot;id&quot;, &quot;number&quot;)"
+            maxlength="100"
+            autocomplete="off"
+            spellcheck="false"
+            data-category="generic"
+            aria-describedby="genericHint genericError"
+          >
+          <p class="adm-field-hint" id="genericHint">
+            Short, shared terms used as a last resort. Max 10.
+            <span class="adm-char-count" id="genericCount">0 / 10</span>
+          </p>
+          <p class="adm-field-error" id="genericError" role="alert" hidden></p>
+        </div>
+
+        <!-- Keywords: Negative -->
+        <div class="adm-field adm-kw-section adm-kw-negative">
+          <label class="adm-field-label" for="inputNegative">
+            <span class="adm-kw-cat-dot adm-kw-dot-negative" aria-hidden="true"></span>
+            Negative Keywords
+          </label>
+          <div class="adm-tags-wrap" id="tagsWrapNegative" role="listbox" aria-label="Negative keywords"></div>
+          <input
+            type="text"
+            class="adm-field-input"
+            id="inputNegative"
+            name="negative"
+            placeholder="Terms that DISQUALIFY this field (e.g. &quot;transaction&quot;)"
+            maxlength="100"
+            autocomplete="off"
+            spellcheck="false"
+            data-category="negative"
+            aria-describedby="negativeHint negativeError"
+          >
+          <p class="adm-field-hint" id="negativeHint">
+            If any of these match, this field is skipped. Max 20.
+            <span class="adm-char-count" id="negativeCount">0 / 20</span>
+          </p>
+          <p class="adm-field-error" id="negativeError" role="alert" hidden></p>
+        </div>
+
+        </div><!-- /.adm-kw-grid -->
+
+        <div class="adm-modal-ftr">
+          <button type="button" class="adm-btn adm-btn-ghost" id="modalCancel">Cancel</button>
+          <button type="submit" class="adm-btn adm-btn-primary" id="saveBtn">
+            <span class="adm-spinner" aria-hidden="true"></span>
+            <span id="saveBtnLabel">Save Mapping</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!--  DELETE CONFIRMATION MODAL                             -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <div class="adm-modal-backdrop" id="confirmModal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+    <div class="adm-modal adm-modal-sm">
+      <div class="adm-modal-hdr">
+        <h2 class="adm-modal-title" id="confirmTitle">Delete Mapping?</h2>
+        <button class="adm-modal-close" id="confirmClose" type="button" aria-label="Close">✕</button>
+      </div>
+      <div>
+        <p class="adm-confirm-text">
+          You are about to permanently delete the mapping for
+          <span class="adm-confirm-key" id="confirmKeyLabel"></span>.
+        </p>
+        <p class="adm-confirm-warn">
+          ⚠&nbsp; This will affect extension autofill behavior immediately.
+        </p>
+      </div>
+      <div class="adm-modal-ftr">
+        <button type="button" class="adm-btn adm-btn-ghost" id="confirmCancel">Cancel</button>
+        <button type="button" class="adm-btn adm-btn-danger" id="confirmDeleteBtn">
+          <span class="adm-spinner" aria-hidden="true"></span>
+          <span id="confirmBtnLabel">Delete</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/fieldMappings.js"></script>
+</body>
+</html>
+

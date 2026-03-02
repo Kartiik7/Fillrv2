@@ -1,0 +1,199 @@
+/* ============================================
+   Fillr - Placement Autofill System
+   Shared Stylesheet
+   ============================================ */
+
+/* ---------- RESET & BASE ---------- */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: #f5f6fa;
+  color: #333;
+  min-height: 100vh;
+}
+a { color: #3498db; text-decoration: none; transition: color 0.2s; }
+a:hover { color: #2178b5; }
+
+/* ---------- UTILITY ---------- */
+.success { color: #27ae60; font-weight: 600; }
+.error   { color: #e74c3c; font-weight: 600; }
+
+/* ===================================================
+   AUTH PAGES  (login, register, index)
+   =================================================== */
+.auth-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+.auth-card {
+  background: #fff;
+  width: 100%;
+  max-width: 420px;
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  padding: 40px 36px;
+}
+.auth-card .brand {
+  text-align: center;
+  margin-bottom: 28px;
+}
+.auth-card .brand h1 {
+  font-size: 1.5rem;
+  color: #2c3e50;
+  margin-bottom: 4px;
+}
+.auth-card .brand p {
+  font-size: 0.88rem;
+  color: #7f8c8d;
+}
+.auth-card #message {
+  font-size: 0.9rem;
+  min-height: 20px;
+  text-align: center;
+  margin-bottom: 8px;
+}
+.auth-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.auth-card .field {
+  display: flex;
+  flex-direction: column;
+}
+.auth-card .field label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 5px;
+}
+.auth-card .field input {
+  padding: 10px 12px;
+  border: 1px solid #ccd1d9;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  background: #fff;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.auth-card .field input:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 0 3px rgba(52,152,219,0.12);
+}
+.auth-card .btn-primary {
+  width: 100%;
+  padding: 11px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  background: #3498db;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+  margin-top: 4px;
+}
+.auth-card .btn-primary:hover { background: #2980b9; }
+.auth-card .auth-footer {
+  text-align: center;
+  margin-top: 18px;
+  font-size: 0.88rem;
+  color: #7f8c8d;
+}
+.auth-card .auth-footer a { font-weight: 600; }
+
+/* Index / Welcome specific */
+.auth-card .welcome-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+.auth-card .welcome-actions a {
+  display: block;
+  text-align: center;
+  padding: 11px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition: background 0.2s, color 0.2s;
+}
+.auth-card .welcome-actions .btn-primary-link {
+  background: #3498db;
+  color: #fff;
+}
+.auth-card .welcome-actions .btn-primary-link:hover { background: #2980b9; }
+.auth-card .welcome-actions .btn-outline-link {
+  background: #fff;
+  color: #3498db;
+  border: 2px solid #3498db;
+}
+.auth-card .welcome-actions .btn-outline-link:hover { background: #eaf4fc; }
+
+/* ===================================================
+   DASHBOARD PAGE
+   =================================================== */
+.dashboard-body { padding: 20px 30px; }
+.dashboard-body .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.dashboard-body .header h1 { font-size: 1.6rem; color: #2c3e50; }
+.dashboard-body .header button {
+  background: #e74c3c; color: #fff; border: none;
+  padding: 8px 18px; border-radius: 6px; cursor: pointer; font-size: 0.9rem;
+}
+.dashboard-body .header button:hover { background: #c0392b; }
+.dashboard-body #message { font-size: 0.95rem; min-height: 20px; margin-bottom: 10px; }
+
+.section {
+  background: #fff;
+  border: 1px solid #dfe6e9;
+  padding: 18px 20px;
+  margin-bottom: 16px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.section h3 {
+  font-size: 1.1rem;
+  color: #2c3e50;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #3498db;
+}
+.field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 20px; }
+.field-grid.single-col { grid-template-columns: 1fr; }
+.field { display: flex; flex-direction: column; }
+.field label { font-size: 0.85rem; font-weight: 600; color: #555; margin-bottom: 4px; }
+.field label .req { color: #e74c3c; }
+.field input, .field select, .field textarea {
+  padding: 8px 10px;
+  border: 1px solid #ccd1d9;
+  border-radius: 5px;
+  font-size: 0.9rem;
+  background: #fff;
+  transition: border-color 0.2s;
+}
+.field input:focus, .field select:focus, .field textarea:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 0 2px rgba(52,152,219,0.15);
+}
+.field input:disabled { background: #ecf0f1; color: #7f8c8d; cursor: not-allowed; }
+.field input.invalid, .field select.invalid { border-color: #e74c3c; }
+.field textarea { resize: vertical; min-height: 50px; }
+
+.btn-save {
+  display: block; width: 100%; max-width: 250px;
+  margin: 16px auto 0; padding: 12px;
+  font-size: 1rem; font-weight: 600;
+  background: #3498db; color: #fff;
+  border: none; border-radius: 8px;
+  cursor: pointer; transition: background 0.2s;
+}
+.btn-save:hover { background: #2980b9; }
+
+@media (max-width: 600px) {
+  .field-grid { grid-template-columns: 1fr; }
+  .dashboard-body { padding: 12px; }
+}

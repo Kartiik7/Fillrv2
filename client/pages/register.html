@@ -1,0 +1,425 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register — Fillr</title>
+  <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+  <link rel="icon" type="image/png" href="../assets/favicon.png">
+  <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/auth.css">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body class="auth-page">
+
+  <div class="auth-wrapper">
+
+    <!-- Brand -->
+    <div class="auth-brand">
+      <a href="/">
+        Fillr<span class="dot">.</span>
+        <span class="tag">Chrome Extension</span>
+      </a>
+    </div>
+
+    <!-- Card -->
+    <div class="auth-card">
+
+      <!-- Success overlay -->
+      <div class="success-overlay" id="successOverlay">
+        <div class="success-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+        <h3>Account created!</h3>
+        <p>Redirecting to login&hellip;</p>
+      </div>
+
+      <div class="auth-card-head">
+        <h1>Create your account</h1>
+        <p>Already have an account? <a href="/login">Sign in</a></p>
+      </div>
+
+      <!-- Error banner -->
+      <div class="auth-error" id="authError" role="alert">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <span id="authErrorText"></span>
+      </div>
+
+      <form id="registerForm" novalidate>
+
+        <!-- Email -->
+        <div class="fl-group" id="emailGroup">
+          <input
+            class="fl-input"
+            type="email"
+            id="email"
+            name="email"
+            placeholder=" "
+            autocomplete="email"
+            required
+          >
+          <label class="fl-label" for="email">Email address</label>
+          <span class="fl-bar"></span>
+        </div>
+
+        <!-- Password -->
+        <div class="fl-group pw-wrap" id="passwordGroup">
+          <input
+            class="fl-input"
+            type="password"
+            id="password"
+            name="password"
+            placeholder=" "
+            autocomplete="new-password"
+            required
+          >
+          <label class="fl-label" for="password">Password</label>
+          <span class="fl-bar"></span>
+          <button type="button" class="pw-toggle" id="pwToggle1" aria-label="Show/hide password">
+            <svg class="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+            <svg class="icon-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+              <line x1="1" y1="1" x2="23" y2="23"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Strength bar -->
+        <div class="strength-wrap" id="strengthWrap" style="display:none; margin-top:-12px; margin-bottom:16px;">
+          <div class="strength-bar">
+            <div class="strength-seg" id="seg1"></div>
+            <div class="strength-seg" id="seg2"></div>
+            <div class="strength-seg" id="seg3"></div>
+            <div class="strength-seg" id="seg4"></div>
+          </div>
+          <span class="strength-label" id="strengthLabel">WEAK</span>
+        </div>
+
+        <!-- Password rules checklist -->
+        <ul class="pw-rules" id="pwRules" style="display:none; margin-bottom:16px;">
+          <li id="rule-len">At least 8 characters</li>
+          <li id="rule-upper">One uppercase letter</li>
+          <li id="rule-num">One number</li>
+          <li id="rule-special">One special character</li>
+        </ul>
+
+        <!-- Confirm Password -->
+        <div class="fl-group pw-wrap" id="confirmGroup">
+          <input
+            class="fl-input"
+            type="password"
+            id="confirmPassword"
+            name="confirmPassword"
+            placeholder=" "
+            autocomplete="new-password"
+            required
+          >
+          <label class="fl-label" for="confirmPassword">Confirm password</label>
+          <span class="fl-bar"></span>
+          <button type="button" class="pw-toggle" id="pwToggle2" aria-label="Show/hide confirm password">
+            <svg class="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+            <svg class="icon-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+              <line x1="1" y1="1" x2="23" y2="23"/>
+            </svg>
+          </button>
+        </div>
+        <span class="fl-hint is-error" id="confirmHint" style="display:none; margin-top:-12px; margin-bottom:16px;">Passwords do not match</span>
+
+        <!-- Legal Consent — required for registration; cannot be bypassed -->
+        <div class="consent-wrap" id="consentWrap">
+          <input type="checkbox" id="termsAccepted" name="termsAccepted">
+          <label for="termsAccepted">
+            I have read and agree to the
+            <a href="/terms" target="_blank" rel="noopener">Terms &amp; Conditions</a>
+            and
+            <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.
+            I understand that my personal and academic data will be stored to enable the autofill service.
+          </label>
+        </div>
+        <div class="consent-err" id="consentErr">You must accept the Terms &amp; Privacy Policy to register.</div>
+
+        <button type="submit" class="btn-submit" id="submitBtn">
+          <span class="btn-text">Create account</span>
+          <span class="spinner"></span>
+        </button>
+
+        <!-- OAuth divider -->
+        <div class="auth-divider"><span>or</span></div>
+
+        <!-- Google Sign-In button (rendered by Google) -->
+        <div id="googleBtnContainer" style="display:flex;justify-content:center;"></div>
+
+      </form>
+    </div>
+
+    <p class="auth-footer">
+      <a href="/">&larr; Back to home</a>
+    </p>
+  </div>
+
+  <div class="legal-footer-bar">
+    <a href="/terms">Terms &amp; Conditions</a>
+    <a href="/privacy">Privacy Policy</a>
+  </div>
+
+  <script src="../env.js"></script>
+  <script src="../js/api.js"></script>
+  <script>
+    // --- Password toggle helpers ---
+    function makePwToggle(toggleId, inputId) {
+      const btn = document.getElementById(toggleId);
+      const inp = document.getElementById(inputId);
+      btn.addEventListener('click', () => {
+        const isText = inp.type === 'text';
+        inp.type = isText ? 'password' : 'text';
+        btn.classList.toggle('active', !isText);
+      });
+    }
+    makePwToggle('pwToggle1', 'password');
+    makePwToggle('pwToggle2', 'confirmPassword');
+
+    // --- Password strength ---
+    const pwInput       = document.getElementById('password');
+    const strengthWrap  = document.getElementById('strengthWrap');
+    const strengthLabel = document.getElementById('strengthLabel');
+    const segs          = [document.getElementById('seg1'), document.getElementById('seg2'), document.getElementById('seg3'), document.getElementById('seg4')];
+    const pwRules       = document.getElementById('pwRules');
+
+    const rules = {
+      len:     { el: document.getElementById('rule-len'),     test: v => v.length >= 8 },
+      upper:   { el: document.getElementById('rule-upper'),   test: v => /[A-Z]/.test(v) },
+      num:     { el: document.getElementById('rule-num'),     test: v => /[0-9]/.test(v) },
+      special: { el: document.getElementById('rule-special'), test: v => /[^A-Za-z0-9]/.test(v) },
+    };
+
+    const strengthMap = [
+      { label: 'WEAK',    cls: 'active-1', count: 1 },
+      { label: 'FAIR',    cls: 'active-2', count: 2 },
+      { label: 'GOOD',    cls: 'active-3', count: 3 },
+      { label: 'STRONG',  cls: 'active-4', count: 4 },
+    ];
+
+    pwInput.addEventListener('input', () => {
+      const val = pwInput.value;
+      if (!val) {
+        strengthWrap.style.display = 'none';
+        pwRules.style.display      = 'none';
+        return;
+      }
+      strengthWrap.style.display = 'block';
+      pwRules.style.display      = 'block';
+
+      let met = 0;
+      Object.values(rules).forEach(r => {
+        const pass = r.test(val);
+        r.el.classList.toggle('met', pass);
+        r.el.classList.toggle('unmet', !pass);
+        if (pass) met++;
+      });
+
+      const lvl = strengthMap[Math.min(met, 4) - 1] || strengthMap[0];
+      segs.forEach((s, i) => {
+        s.className = 'strength-seg';
+        if (i < met) s.classList.add(lvl.cls);
+      });
+      strengthLabel.textContent = lvl.label;
+    });
+
+    // --- Confirm password live check ---
+    const confirmInput = document.getElementById('confirmPassword');
+    const confirmHint  = document.getElementById('confirmHint');
+    confirmInput.addEventListener('input', () => {
+      if (!confirmInput.value) { confirmHint.style.display = 'none'; return; }
+      const match = confirmInput.value === pwInput.value;
+      confirmHint.style.display = match ? 'none' : 'block';
+      confirmInput.classList.toggle('is-error', !match);
+      confirmInput.classList.toggle('is-valid',  match);
+    });
+
+    // --- Form submit ---
+    const form      = document.getElementById('registerForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const errorEl   = document.getElementById('authError');
+    const errorText = document.getElementById('authErrorText');
+
+    function showError(msg) {
+      errorText.textContent = msg;
+      errorEl.classList.add('show');
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorEl.classList.remove('show');
+
+      const email    = document.getElementById('email').value.trim();
+      const password = pwInput.value;
+      const confirm  = confirmInput.value;
+      const terms    = document.getElementById('termsAccepted').checked;
+      const consentWrap = document.getElementById('consentWrap');
+      const consentErr  = document.getElementById('consentErr');
+
+      if (!email || !password || !confirm) {
+        showError('Please fill in all fields.');
+        return;
+      }
+      if (password !== confirm) {
+        showError('Passwords do not match.');
+        confirmInput.classList.add('is-error');
+        return;
+      }
+      const metCount = Object.values(rules).filter(r => r.test(password)).length;
+      if (metCount < 3) {
+        showError('Password is too weak. Please meet at least 3 of the 4 requirements.');
+        pwInput.classList.add('is-error');
+        return;
+      }
+
+      // Consent is mandatory — cannot register without accepting Terms
+      if (!terms) {
+        consentWrap.classList.add('is-error');
+        consentErr.style.display = 'block';
+        consentErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      consentWrap.classList.remove('is-error');
+      consentErr.style.display = 'none';
+
+      submitBtn.classList.add('loading');
+      submitBtn.disabled = true;
+
+      try {
+        const result = await apiRequest('/auth/register', 'POST', {
+          email,
+          password,
+          termsAccepted: true,   // Explicit consent — verified serverside
+        });
+
+        if (result.data && result.data.success) {
+          document.getElementById('successOverlay').classList.add('show');
+          setTimeout(() => { window.location.href = '/login'; }, 1500);
+        } else {
+          showError(result.data?.message || 'Registration failed. Please try again.');
+        }
+      } catch (err) {
+        showError('Could not connect to server. Please try again.');
+      } finally {
+        submitBtn.classList.remove('loading');
+        submitBtn.disabled = false;
+      }
+    });
+
+    // Clear consent error when checkbox is clicked
+    document.getElementById('termsAccepted').addEventListener('change', function() {
+      if (this.checked) {
+        document.getElementById('consentWrap').classList.remove('is-error');
+        document.getElementById('consentErr').style.display = 'none';
+      }
+    });
+
+    // ── Google OAuth ──────────────────────────────────────────
+    const GOOGLE_CLIENT_ID = ENV.GOOGLE_CLIENT_ID || '';
+    let googleInitialized = false;
+
+    function initGoogleIfNeeded() {
+      if (googleInitialized || !window.google) return false;
+      if (!GOOGLE_CLIENT_ID) return false;
+      google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleGoogleCredentialResponse,
+      });
+      googleInitialized = true;
+      return true;
+    }
+
+    function handleGoogleCredentialResponse(response) {
+      if (!response.credential) return;
+      errorEl.classList.remove('show');
+      submitBtn.classList.add('loading');
+      submitBtn.disabled = true;
+
+      apiRequest('/auth/google', 'POST', {
+        credential: response.credential,
+        termsAccepted: true,
+      }).then(result => {
+        if (result.data && result.data.success) {
+          localStorage.setItem('token', result.data.token);
+          document.getElementById('successOverlay').classList.add('show');
+          setTimeout(() => { window.location.href = '/dashboard'; }, 1200);
+        } else {
+          showError(result.data?.message || 'Google sign-up failed.');
+        }
+      }).catch(() => {
+        showError('Could not connect to server. Please try again.');
+      }).finally(() => {
+        submitBtn.classList.remove('loading');
+        submitBtn.disabled = false;
+      });
+    }
+
+    // Render Google button when library is ready
+    function renderGoogleButton() {
+      if (!window.google || !GOOGLE_CLIENT_ID) return;
+      initGoogleIfNeeded();
+      google.accounts.id.renderButton(
+        document.getElementById('googleBtnContainer'),
+        {
+          type: 'standard',
+          theme: 'outline',
+          size: 'large',
+          text: 'signup_with',
+          shape: 'rectangular',
+          width: 300,
+        }
+      );
+    }
+
+    // Try rendering immediately if library loaded
+    renderGoogleButton();
+
+    // Also try when window loads (in case script wasn't ready)
+    window.addEventListener('load', renderGoogleButton);
+
+    // ── Resend verification email ─────────────────────────────
+    function setupResendBtn(userEmail) {
+      const btn  = document.getElementById('resendVerifyBtn');
+      const stat = document.getElementById('resendVerifyStatus');
+      btn.addEventListener('click', async () => {
+        if (!userEmail) return;
+        btn.disabled = true;
+        btn.textContent = 'Sending…';
+        stat.style.display = 'none';
+        try {
+          const { data } = await apiRequest('/auth/resend-verification', 'POST', { email: userEmail });
+          stat.style.display = 'block';
+          stat.style.color = '#22c55e';
+          stat.textContent = data.message || 'Verification email resent!';
+        } catch {
+          stat.style.display = 'block';
+          stat.style.color = '#ef4444';
+          stat.textContent = 'Failed to resend. Please try again later.';
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "Didn\u2019t get it? Resend";
+        }
+      });
+    }
+  </script>
+</body>
+</html>
+
+

@@ -1,0 +1,294 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login — Fillr</title>
+  <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+  <link rel="icon" type="image/png" href="../assets/favicon.png">
+  <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/auth.css">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body class="auth-page">
+
+  <div class="auth-wrapper">
+
+    <!-- Brand -->
+    <div class="auth-brand">
+      <a href="/">
+        Fillr<span class="dot">.</span>
+        <span class="tag">Chrome Extension</span>
+      </a>
+    </div>
+
+    <!-- Card -->
+    <div class="auth-card">
+
+      <!-- Success overlay -->
+      <div class="success-overlay" id="successOverlay">
+        <div class="success-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+        <h3>Signed in!</h3>
+        <p>Redirecting to your dashboard&hellip;</p>
+      </div>
+
+      <div class="auth-card-head">
+        <h1>Welcome back</h1>
+        <p>Don't have an account? <a href="/register">Create one free</a></p>
+      </div>
+
+      <!-- Error banner -->
+      <div class="auth-error" id="authError" role="alert">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <span id="authErrorText"></span>
+      </div>
+
+      <!-- Success banner (e.g. after account deletion) -->
+      <div class="auth-success" id="authSuccess" role="status">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        <span id="authSuccessText"></span>
+      </div>
+
+      <form id="loginForm" novalidate>
+
+        <!-- Email -->
+        <div class="fl-group">
+          <input
+            class="fl-input"
+            type="email"
+            id="email"
+            name="email"
+            placeholder=" "
+            autocomplete="email"
+            required
+          >
+          <label class="fl-label" for="email">Email address</label>
+          <span class="fl-bar"></span>
+        </div>
+
+        <!-- Password -->
+        <div class="fl-group pw-wrap">
+          <input
+            class="fl-input"
+            type="password"
+            id="password"
+            name="password"
+            placeholder=" "
+            autocomplete="current-password"
+            required
+          >
+          <label class="fl-label" for="password">Password</label>
+          <span class="fl-bar"></span>
+          <button type="button" class="pw-toggle" id="pwToggle" aria-label="Show/hide password">
+            <!-- Eye icon -->
+            <svg class="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+            <!-- Eye-off icon -->
+            <svg class="icon-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+              <line x1="1" y1="1" x2="23" y2="23"/>
+            </svg>
+          </button>
+        </div>
+
+        <div style="text-align: right; margin: -12px 0 8px;">
+          <a href="/forgot-password" style="font-size: 0.82rem; color: var(--blue); font-weight: 600; text-decoration: none;">Forgot password?</a>
+        </div>
+
+        <button type="submit" class="btn-submit" id="submitBtn">
+          <span class="btn-text">Sign in</span>
+          <span class="spinner"></span>
+        </button>
+
+        <!-- OAuth divider -->
+        <div class="auth-divider"><span>or</span></div>
+
+        <!-- Google Sign-In button (rendered by Google) -->
+        <div id="googleBtnContainer" style="display:flex;justify-content:center;"></div>
+
+      </form>
+    </div>
+
+    <p class="auth-footer">
+      <a href="/">&larr; Back to home</a>
+    </p>
+  </div>
+
+  <div class="legal-footer-bar">
+    <a href="/terms">Terms &amp; Conditions</a>
+    <a href="/privacy">Privacy Policy</a>
+  </div>
+
+  <script src="../env.js"></script>
+  <script src="../js/api.js"></script>
+  <script>
+    // Redirect if already logged in
+    if (localStorage.getItem('token')) {
+      window.location.href = '/dashboard';
+    }
+
+    // Show success banner when redirected after account deletion
+    if (new URLSearchParams(window.location.search).get('deleted') === '1') {
+      const s = document.getElementById('authSuccess');
+      document.getElementById('authSuccessText').textContent =
+        'Your account has been permanently deleted. Sorry to see you go.';
+      s.classList.add('show');
+      // Clean up URL without reloading
+      history.replaceState(null, '', window.location.pathname);
+    }
+
+    // Password toggle
+    const pwToggle = document.getElementById('pwToggle');
+    const pwInput  = document.getElementById('password');
+    pwToggle.addEventListener('click', () => {
+      const isText = pwInput.type === 'text';
+      pwInput.type = isText ? 'password' : 'text';
+      pwToggle.classList.toggle('active', !isText);
+    });
+
+    // Form submit
+    const form      = document.getElementById('loginForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const errorEl   = document.getElementById('authError');
+    const errorText = document.getElementById('authErrorText');
+
+    function showError(msg) {
+      errorText.textContent = msg;
+      errorEl.classList.add('show');
+      document.getElementById('email').classList.remove('is-error');
+      document.getElementById('password').classList.remove('is-error');
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorEl.classList.remove('show');
+
+      const email    = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      if (!email || !password) {
+        showError('Please fill in all fields.');
+        if (!email)    document.getElementById('email').classList.add('is-error');
+        if (!password) document.getElementById('password').classList.add('is-error');
+        return;
+      }
+
+      submitBtn.classList.add('loading');
+      submitBtn.disabled = true;
+
+      try {
+        const result = await apiRequest('/auth/login', 'POST', { email, password });
+
+        if (result.data && result.data.success) {
+          localStorage.setItem('token', result.data.token);
+          localStorage.setItem('fillr_token', result.data.token);
+          document.getElementById('successOverlay').classList.add('show');
+          setTimeout(() => { window.location.href = '/dashboard'; }, 1200);
+        } else {
+          showError(result.data?.message || 'Invalid credentials. Please try again.');
+        }
+      } catch (err) {
+        showError('Could not connect to server. Please try again.');
+      } finally {
+        submitBtn.classList.remove('loading');
+        submitBtn.disabled = false;
+      }
+    });
+
+    // ── Google OAuth ──────────────────────────────────────────
+    // GOOGLE_CLIENT_ID must match GOOGLE_CLIENT_ID on the backend.
+    // The credential (ID token) is sent to POST /api/auth/google for
+    // server-side verification before issuing a JWT.
+    const GOOGLE_CLIENT_ID = ENV.GOOGLE_CLIENT_ID || '';
+    let googleInitialized = false;
+
+    function initGoogleIfNeeded() {
+      if (googleInitialized || !window.google) return false;
+      if (!GOOGLE_CLIENT_ID) return false;
+      google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleGoogleCredentialResponse,
+      });
+      googleInitialized = true;
+      return true;
+    }
+
+    function handleGoogleCredentialResponse(response) {
+      if (!response.credential) return;
+      errorEl.classList.remove('show');
+      submitBtn.classList.add('loading');
+      submitBtn.disabled = true;
+
+      const doGoogleLogin = (termsAccepted) => {
+        apiRequest('/auth/google', 'POST', {
+          credential: response.credential,
+          termsAccepted,
+        }).then(result => {
+          if (result.data && result.data.success) {
+            localStorage.setItem('token', result.data.token || result.data.accessToken);
+            localStorage.setItem('fillr_token', result.data.token || result.data.accessToken);
+            document.getElementById('successOverlay').classList.add('show');
+            setTimeout(() => { window.location.href = '/dashboard'; }, 1200);
+          } else if (result.data?.requireTerms) {
+            // New Google user — needs to accept terms first
+            if (confirm('To create your Fillr account, you must accept the Terms & Conditions and Privacy Policy.\n\nTerms: https://fillr-placement-autofill.netlify.app/terms.html\nPrivacy: https://fillr-placement-autofill.netlify.app/privacy.html\n\nDo you accept?')) {
+              doGoogleLogin(true);
+              return; // Don't reset loading state yet
+            } else {
+              showError('You must accept the Terms & Conditions to create an account.');
+            }
+          } else {
+            showError(result.data?.message || 'Google login failed.');
+          }
+        }).catch(() => {
+          showError('Could not connect to server. Please try again.');
+        }).finally(() => {
+          submitBtn.classList.remove('loading');
+          submitBtn.disabled = false;
+        });
+      };
+
+      doGoogleLogin(false); // First attempt without terms — existing users pass, new users get requireTerms
+    }
+
+    // Render Google button when library is ready
+    function renderGoogleButton() {
+      if (!window.google || !GOOGLE_CLIENT_ID) return;
+      initGoogleIfNeeded();
+      google.accounts.id.renderButton(
+        document.getElementById('googleBtnContainer'),
+        {
+          type: 'standard',
+          theme: 'outline',
+          size: 'large',
+          text: 'continue_with',
+          shape: 'rectangular',
+          width: 300,
+        }
+      );
+    }
+
+    // Try rendering immediately if library loaded
+    renderGoogleButton();
+
+    // Also try when window loads (in case script wasn't ready)
+    window.addEventListener('load', renderGoogleButton);
+  </script>
+</body>
+</html>
+
+
