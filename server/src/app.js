@@ -78,16 +78,30 @@ app.use(compression());
 
 // ── CORS — Strict Origin Whitelist ──────────────────────────
 // Only allow known origins. Never use wildcard "*" in production.
-const allowedOrigins = [
+// Merge hardcoded safe origins with any extra origins from CORS_ORIGINS env var.
+const hardcodedOrigins = [
   'http://localhost:5500',
+  'http://localhost:3000',
+  'http://localhost:5000',
   'http://127.0.0.1:5500',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:5000',
   'https://fillr-v2.netlify.app',
 ];
 
+const envOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean);
+
+const allowedOrigins = [...new Set([...hardcodedOrigins, ...envOrigins])];
+
 const corsOptions = {
   origin(origin, callback) {
-    // Allow requests with no origin (mobile apps, curl, Postman)
+    // Allow requests with no origin (mobile apps, curl, Postman, Chrome extensions)
     if (!origin) return callback(null, true);
+    // Allow Chrome extension origins
+    if (origin.startsWith('chrome-extension://')) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
     callback(new Error('Not allowed by CORS'));
   },
