@@ -130,13 +130,45 @@ button { font-family: var(--sans); }
   padding: 28px 24px 100px;
 }
 
-/* ── Page Header ─────────────────────────────────────────────── */
+/* ── Page Header — provides consistent 32px top spacing ─────────── */
 .adm-page-hdr {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 24px;
+  margin-top: 32px;
+  margin-bottom: 14px;
+}
+/* First page-hdr (right after breadcrumb / intro) needs no top margin */
+.adm-container > .adm-page-hdr:first-of-type { margin-top: 0; }
+
+/* ── Reusable layout utilities ───────────────────────────────────
+   Use these for new sections or pages for consistent vertical rhythm.
+   .dashboard-section  → wraps any major section (provides 32px top gap)
+   .dashboard-card     → white card surface matching adm-metric-card style
+   .section-title      → alias for adm-section-title (no extra margin, inherited)
+   ─────────────────────────────────────────────────────────────── */
+.dashboard-section {
+  margin-top: 32px;
+}
+.dashboard-section:first-child {
+  margin-top: 0;
+}
+.dashboard-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.section-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--dark);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .adm-page-title {
   font-size: 1.25rem;
@@ -328,6 +360,7 @@ button { font-family: var(--sans); }
   overflow-x: hidden;
   overflow-y: hidden;
   box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  margin-bottom: 32px;
 }
 .adm-table {
   width: 100%;
@@ -347,7 +380,7 @@ button { font-family: var(--sans); }
   white-space: nowrap;
 }
 .adm-table td {
-  padding: 12px 18px;
+  padding: 12px 16px;
   color: var(--text);
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
@@ -833,11 +866,16 @@ button { font-family: var(--sans); }
   font-size: 0.9rem;
   font-weight: 700;
   color: var(--dark);
+  margin-top: 32px;
   margin-bottom: 12px;
   display: flex;
   align-items: center;
   gap: 8px;
 }
+/* No extra top margin when inside a page-hdr — it provides its own spacing */
+.adm-page-hdr .adm-section-title,
+.adm-debug-card .adm-section-title {
+  margin-top: 0;  margin-bottom: 10px;}
 .adm-section-badge {
   font-family: var(--mono);
   font-size: 0.68rem;
@@ -862,10 +900,18 @@ button { font-family: var(--sans); }
   border-radius: 10px;
   padding: 18px 20px;
   transition: border-color 0.2s, box-shadow 0.2s;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 .adm-metric-card:hover {
   border-color: #bfdbfe;
   box-shadow: 0 0 0 3px var(--blue-glow);
+}
+/* Quick action cards — button fills the card */
+.adm-metric-card .adm-btn {
+  width: 100%;
+  justify-content: center;
 }
 .adm-metric-label {
   font-size: 0.68rem;
