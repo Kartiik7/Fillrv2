@@ -53,6 +53,9 @@ app.use(helmet({
       upgradeInsecureRequests: isProd ? [] : null,
     },
   },
+  // Cross-Origin-Opener-Policy: disabled to allow Google OAuth postMessage flow.
+  // Without this, the Google login popup cannot communicate back to the opener window.
+  crossOriginOpenerPolicy: false,
   // Strict-Transport-Security: require HTTPS for 1 year in production
   hsts: isProd
     ? { maxAge: 31536000, includeSubDomains: true, preload: true }
@@ -74,27 +77,30 @@ app.disable('x-powered-by'); // belt-and-suspenders; helmet already removes it
 app.use(compression());
 
 // ── CORS — Strict Origin Whitelist ──────────────────────────
-// Only allow known origins. In production, read from env.
-// In development, allow localhost ports for convenience.
-const allowedOrigins = isProd
-  ? (process.env.ALLOWED_ORIGINS || '').split(',').map(o => o.trim()).filter(Boolean)
-  : [
-      'http://localhost:3000',
-      'http://localhost:5000',
-      'http://127.0.0.1:3000',
-      'http://127.0.0.1:5500',
-    ];
+// Only allow known origins. Never use wildcard "*" in production.
+const allowedOrigins = [
+  'http://localhost:5500',
+  'http://127.0.0.1:5500',
+  'https://fillr-v2.netlify.app',
+];
 
-app.use(cors({
+const corsOptions = {
   origin(origin, callback) {
     // Allow requests with no origin (mobile apps, curl, Postman)
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
-    callback(new Error(`CORS: Origin '${origin}' not allowed.`));
+    callback(new Error('Not allowed by CORS'));
   },
-  credentials: true,           // Allow cookies/auth headers cross-origin
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
   optionsSuccessStatus: 200,
-}));
+};
+
+app.use(cors(corsOptions));
+
+// ── Preflight — handle OPTIONS for all routes ─────────────────
+app.options('*', cors(corsOptions));
 
 // ── Body parsing — with size limit ────────────────────────────
 // Prevents payload-flooding DoS attacks
