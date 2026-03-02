@@ -35,71 +35,71 @@
 
 # HTML pages: no cache (always fetch fresh so updates deploy instantly)
 [[headers]]
-  for = "/*.html"
+  for = "/**/*.html"
   [headers.values]
     Cache-Control = "no-cache, no-store, must-revalidate"
     Pragma        = "no-cache"
     Expires       = "0"
 
 # ── Clean URL redirects ───────────────────────────────────────
-# Map clean URLs to .html pages (200 = rewrite, not redirect)
+# Map clean URLs to folder-based index.html pages (200 = rewrite, not redirect)
 [[redirects]]
   from   = "/"
-  to     = "/pages/index.html"
+  to     = "/pages/home/index.html"
   status = 200
 
 [[redirects]]
   from   = "/login"
-  to     = "/pages/login.html"
+  to     = "/pages/login/index.html"
   status = 200
 
 [[redirects]]
   from   = "/register"
-  to     = "/pages/register.html"
+  to     = "/pages/register/index.html"
   status = 200
 
 [[redirects]]
   from   = "/dashboard"
-  to     = "/pages/dashboard.html"
+  to     = "/pages/dashboard/index.html"
   status = 200
 
 [[redirects]]
   from   = "/admin"
-  to     = "/pages/admin.html"
+  to     = "/pages/admin/index.html"
   status = 200
 
 [[redirects]]
   from   = "/field-mappings"
-  to     = "/pages/fieldMappings.html"
+  to     = "/pages/field-mappings/index.html"
   status = 200
 
 [[redirects]]
   from   = "/forgot-password"
-  to     = "/pages/forgot-password.html"
+  to     = "/pages/forgot-password/index.html"
   status = 200
 
 [[redirects]]
   from   = "/reset-password"
-  to     = "/pages/reset-password.html"
+  to     = "/pages/reset-password/index.html"
   status = 200
 
 [[redirects]]
   from   = "/verify-email"
-  to     = "/pages/verify-email.html"
+  to     = "/pages/verify-email/index.html"
   status = 200
 
 [[redirects]]
   from   = "/terms"
-  to     = "/pages/terms.html"
+  to     = "/pages/terms/index.html"
   status = 200
 
 [[redirects]]
   from   = "/privacy"
-  to     = "/pages/privacy.html"
+  to     = "/pages/privacy/index.html"
   status = 200
 
 # Fallback for any other route (404 handling)
 [[redirects]]
   from   = "/*"
-  to     = "/pages/index.html"
+  to     = "/pages/home/index.html"
   status = 404
