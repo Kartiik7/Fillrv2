@@ -16,7 +16,7 @@ const ROLES = Object.freeze({
 
 const userSchema = new mongoose.Schema({
   username: { type: String, required: false },
-  email: { type: String, required: true, unique: true },
+  email: { type: String, required: true, unique: true, immutable: true },
   password: { type: String, required: false }, // Optional for Google OAuth users
   // ── Authentication provider ───────────────────────────────
   // Tracks how the user registered — prevents password-less users from

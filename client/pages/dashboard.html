@@ -432,14 +432,20 @@
   }
 
   function createFieldHTML(f) {
+    // Email field in personal section is immutable — show as disabled with note
+    const isImmutableEmail = f.path === 'personal.email';
+    const disabledAttr = isImmutableEmail ? ' disabled title="Email address cannot be changed"' : '';
+    const immutableNote = isImmutableEmail ? '<small class="db-fl-note" style="color:var(--muted);font-size:.75rem;margin-top:2px;">Email address cannot be changed.</small>' : '';
+
     const base = `
       <div class="db-fl${f.type === 'textarea' ? ' db-col-full' : ''}">
         ${f.type === 'textarea'
-          ? `<textarea class="db-fl-textarea" id="${f.id}" data-path="${f.path}" placeholder=" " rows="2"></textarea>`
-          : `<input class="db-fl-input" type="${f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : f.type === 'url' ? 'url' : f.type === 'email' ? 'email' : f.type === 'tel' ? 'tel' : 'text'}" id="${f.id}" data-path="${f.path}" placeholder=" ">`
+          ? `<textarea class="db-fl-textarea" id="${f.id}" data-path="${f.path}" placeholder=" " rows="2"${disabledAttr}></textarea>`
+          : `<input class="db-fl-input" type="${f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : f.type === 'url' ? 'url' : f.type === 'email' ? 'email' : f.type === 'tel' ? 'tel' : 'text'}" id="${f.id}" data-path="${f.path}" placeholder=" "${disabledAttr}>`
         }
         <label class="db-fl-label" for="${f.id}">${f.label}</label>
         <div class="db-fl-bar"></div>
+        ${immutableNote}
         <div class="db-fl-error" id="${f.id}-err"></div>
       </div>`;
     return base;
@@ -739,6 +745,8 @@
     const token = localStorage.getItem('token') || sessionStorage.getItem('token');
     const payload = { profile: {} };
     _fields.forEach(f => {
+      // Skip immutable email field — never include in update payload
+      if (f.path === 'personal.email') return;
       const val = v(f.id);
       setPathValue(payload.profile, f.path, val === '' ? undefined : val);
     });
@@ -750,6 +758,13 @@
         body: JSON.stringify(payload)
       });
       const data = await res.json();
+      // Handle EMAIL_IMMUTABLE error specifically
+      if (data.error === 'EMAIL_IMMUTABLE') {
+        btn.classList.remove('is-loading');
+        btn.disabled = false;
+        showToast('Email address cannot be changed.', 'error');
+        return;
+      }
       if (!res.ok || !data.success) throw new Error(data.message || 'Save failed');
       btn.classList.remove('is-loading');
       btn.classList.add('is-success');

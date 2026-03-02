@@ -81,6 +81,31 @@ exports.getProfile = async (req, res, next) => {
 // ── PUT /api/profile ──────────────────────────────────────────
 exports.updateProfile = async (req, res, next) => {
   try {
+    // ── Email immutability — reject any attempt to change email ──
+    // Email is the permanent identity; changes are blocked at controller,
+    // schema (immutable: true), and frontend levels.
+    const incomingEmail = req.body?.profile?.personal?.email;
+    if (incomingEmail) {
+      const currentUser = await User.findById(req.user._id).select('email').lean();
+      if (currentUser && incomingEmail !== currentUser.email) {
+        // Audit the attempt — fire-and-forget
+        logAdminAction({
+          action: 'EMAIL_CHANGE_ATTEMPT',
+          adminId: req.user._id,
+          ip: req.ip,
+          metadata: {
+            userId: String(req.user._id),
+            attemptedEmail: incomingEmail,
+          },
+        });
+        return res.status(400).json({
+          success: false,
+          error: 'EMAIL_IMMUTABLE',
+          message: 'Email address cannot be changed.',
+        });
+      }
+    }
+
     // ── Joi validation — reject malformed / oversized inputs ──
     const { error, value } = profileUpdateSchema.validate(req.body, {
       stripUnknown: true,
