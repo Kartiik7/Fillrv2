@@ -59,7 +59,7 @@ button { font-family: var(--sans); }
   border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 .adm-nav-inner {
-  max-width: 960px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 0 24px;
   height: 54px;
@@ -125,7 +125,7 @@ button { font-family: var(--sans); }
 
 /* ── Page Container (matches .db-main) ────────────────────────── */
 .adm-container {
-  max-width: 960px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 28px 24px 100px;
 }
@@ -325,13 +325,12 @@ button { font-family: var(--sans); }
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: hidden;
   box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
 .adm-table {
   width: 100%;
-  min-width: 640px;
   border-collapse: collapse;
   font-size: 0.84rem;
 }
@@ -352,6 +351,8 @@ button { font-family: var(--sans); }
   color: var(--text);
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 .adm-table tr:last-child td { border-bottom: none; }
 .adm-table tbody tr {
@@ -388,7 +389,7 @@ button { font-family: var(--sans); }
   color: var(--muted);
   white-space: nowrap;
 }
-.adm-cell-actions { display: flex; gap: 8px; align-items: center; }
+.adm-cell-actions { display: flex; gap: 8px; align-items: center; white-space: nowrap; }
 
 /* Inline table action buttons (mirror .db-danger-btn pattern) */
 .adm-tbl-btn {

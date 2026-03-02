@@ -137,6 +137,7 @@
   background: var(--bg);
   color: var(--muted);
   border: 1px solid var(--border);
+  white-space: nowrap;
 }
 .adm-type-date     { background: #fef3c7; color: #92400e; border-color: #fde68a; }
 .adm-type-email    { background: #dbeafe; color: #1e40af; border-color: #bfdbfe; }
