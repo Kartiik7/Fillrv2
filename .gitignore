@@ -1,2 +1,17 @@
 /node_modules
 .env
+env.js
+
+# Build outputs
+*.zip
+fillr-extension-v*.zip
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
