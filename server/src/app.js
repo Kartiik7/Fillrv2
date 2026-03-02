@@ -100,7 +100,8 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // ── Preflight — handle OPTIONS for all routes ─────────────────
-app.options('*', cors(corsOptions));
+// Express 5 requires named wildcard params: {*path} instead of bare *
+app.options('/{*path}', cors(corsOptions));
 
 // ── Body parsing — with size limit ────────────────────────────
 // Prevents payload-flooding DoS attacks
