@@ -188,8 +188,8 @@ exports.forgotPassword = async (req, res, next) => {
     await user.save({ validateBeforeSave: false });
 
     // Build reset URL (always HTTPS in production)
-    const frontendUrl = process.env.FRONTEND_URL || 'https://fillr-placement-autofill.netlify.app';
-    const resetUrl    = `${frontendUrl}/reset-password.html?token=${rawToken}`;
+    const frontendUrl = (process.env.FRONTEND_URL || 'https://fillr-placement-autofill.netlify.app').replace(/\/$/, '');
+    const resetUrl    = `${frontendUrl}/reset-password?token=${rawToken}`;
 
     // Fire-and-forget: track password reset metric
     require('../services/metricsService').incrementMetric('passwordResetRequests');
