@@ -227,12 +227,18 @@
           <span class="db-modal-icon">🔐</span>
           <h2 id="keyGenModalTitle">Generate Extension Key</h2>
         </div>
-        <p class="db-modal-desc">Enter a name for this key (e.g. "Work laptop") and your password to confirm.</p>
+        <p class="db-modal-desc">Choose a name, create your own secret key, and confirm with your password.</p>
         <div class="db-fl" style="margin: 16px 0 8px;">
           <input class="db-fl-input" type="text" id="keyDeviceName" placeholder=" " maxlength="100" autocomplete="off">
           <label class="db-fl-label" for="keyDeviceName">Device Name</label>
           <div class="db-fl-bar"></div>
         </div>
+        <div class="db-fl" style="margin: 0 0 4px;">
+          <input class="db-fl-input" type="text" id="keySecretKey" placeholder=" " maxlength="64" autocomplete="off" spellcheck="false">
+          <label class="db-fl-label" for="keySecretKey">Secret Key</label>
+          <div class="db-fl-bar"></div>
+        </div>
+        <p style="font-size:0.75rem;color:var(--muted);margin:-4px 0 12px;">Min. 10 characters — you'll type this into the extension to connect.</p>
         <div class="db-fl" style="margin: 0 0 4px;">
           <input class="db-fl-input" type="password" id="keyGenPassword" placeholder=" " autocomplete="current-password">
           <label class="db-fl-label" for="keyGenPassword">Your Password</label>
@@ -848,6 +854,7 @@
     const genBackdrop  = $('keyGenModalBackdrop');
     const genPwInput   = $('keyGenPassword');
     const deviceInput  = $('keyDeviceName');
+    const secretInput  = $('keySecretKey');
     const genErr       = $('keyGenErr');
     const confirmGen   = $('confirmKeyGen');
     const dispBackdrop = $('keyDisplayBackdrop');
@@ -934,6 +941,7 @@
       genBackdrop.classList.add('show');
       genPwInput.value = '';
       deviceInput.value = '';
+      secretInput.value = '';
       genErr.textContent = '';
       confirmGen.disabled = false;
       confirmGen.textContent = 'Generate';
@@ -946,25 +954,26 @@
     genBackdrop.addEventListener('click', e => { if (e.target === genBackdrop) closeGenModal(); });
 
     confirmGen.addEventListener('click', async () => {
-      const pwd = genPwInput.value;
+      const pwd       = genPwInput.value;
+      const secretKey = secretInput.value.trim();
+      if (!secretKey) { genErr.textContent = 'Secret key is required.'; return; }
+      if (secretKey.length < 10) { genErr.textContent = 'Secret key must be at least 10 characters.'; return; }
       if (!pwd) { genErr.textContent = 'Password is required.'; return; }
       genErr.textContent = '';
       confirmGen.disabled = true;
-      confirmGen.textContent = 'Generating…';
+      confirmGen.textContent = 'Saving…';
 
       try {
         const res = await fetch(API_URL + '/keys/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
-          body: JSON.stringify({ password: pwd, deviceName: deviceInput.value.trim() || undefined })
+          body: JSON.stringify({ password: pwd, secretKey, deviceName: deviceInput.value.trim() || undefined })
         });
         const data = await res.json();
         if (!res.ok || !data.success) throw new Error(data.message || 'Key generation failed.');
 
         closeGenModal();
-        // Show the raw key
-        dispValue.textContent = data.key.rawKey;
-        dispBackdrop.classList.add('show');
+        showToast('Extension key saved!', 'success');
         loadKeys();
       } catch (err) {
         genErr.textContent = err.message;
