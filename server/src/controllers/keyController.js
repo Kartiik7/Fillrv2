@@ -40,11 +40,21 @@ const lookupHashOf = (key) => crypto.createHash('sha256').update(key).digest('he
 // ── Input schemas ─────────────────────────────────────────────
 const generateSchema = Joi.object({
   password:   Joi.string().min(1).max(128).required(),
+  secretKey:  Joi.string().min(10).max(64).required().messages({
+    'string.min': 'Secret key must be at least 10 characters.',
+    'string.max': 'Secret key must be at most 64 characters.',
+    'any.required': 'Secret key is required.',
+  }),
   deviceName: Joi.string().max(100).default('Chrome Extension'),
 });
 
 const rotateSchema = Joi.object({
   password:   Joi.string().min(1).max(128).required(),
+  secretKey:  Joi.string().min(10).max(64).required().messages({
+    'string.min': 'Secret key must be at least 10 characters.',
+    'string.max': 'Secret key must be at most 64 characters.',
+    'any.required': 'Secret key is required.',
+  }),
   keyId:      Joi.string().uuid({ version: 'uuidv4' }).optional(), // specific key to rotate
   deviceName: Joi.string().max(100).default('Chrome Extension'),
 });
@@ -68,7 +78,7 @@ exports.generateKey = async (req, res, next) => {
       return res.status(400).json({ success: false, message: error.details[0].message });
     }
 
-    const { password, deviceName } = value;
+    const { password, secretKey, deviceName } = value;
 
     // Verify password — ensures live possession of credentials
     // Protects against: stolen JWT being used to generate keys
@@ -98,10 +108,8 @@ exports.generateKey = async (req, res, next) => {
       });
     }
 
-    // Soft-launch: short readable key  (fillr_XXXX-XXXX-XXXX)
-    // Will be upgraded to longer cryptographic keys later
-    const seg = () => crypto.randomBytes(3).toString('hex').toUpperCase();
-    const rawKey = `fillr_${seg()}-${seg()}-${seg()}`;
+    // Use the user-supplied key so they can remember it
+    const rawKey = secretKey;
 
     // Hash with bcrypt (10 salt rounds) — same cost as passwords
     const hashedKey = await bcrypt.hash(rawKey, 10);
@@ -145,7 +153,7 @@ exports.rotateKey = async (req, res, next) => {
       return res.status(400).json({ success: false, message: error.details[0].message });
     }
 
-    const { password, keyId, deviceName } = value;
+    const { password, secretKey, keyId, deviceName } = value;
 
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
@@ -179,9 +187,8 @@ exports.rotateKey = async (req, res, next) => {
       );
     }
 
-    // Soft-launch: short readable key
-    const seg = () => crypto.randomBytes(3).toString('hex').toUpperCase();
-    const rawKey = `fillr_${seg()}-${seg()}-${seg()}`;
+    // Use the user-supplied key so they can remember it
+    const rawKey = secretKey;
     const hashedKey = await bcrypt.hash(rawKey, 10);
     const newKeyId = uuidv4();
     const expiresAt = new Date(Date.now() + ExtensionKey.KEY_VALIDITY_DAYS * 24 * 60 * 60 * 1000);
