@@ -892,7 +892,7 @@ button { font-family: var(--sans); }
   white-space: nowrap;
   transition: background .15s, box-shadow .15s;
 }
-.db-keys-gen-btn:hover { background: var(--blue-hover); box-shadow: 0 2px 8px rgba(59,130,246,.25); }
+.db-keys-gen-btn:hover { background: var(--blue-dim); box-shadow: 0 2px 8px rgba(59,130,246,.25); }
 .db-keys-gen-btn svg { stroke: #fff; flex-shrink: 0; }
 
 /* Key list */
