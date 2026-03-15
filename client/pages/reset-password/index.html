@@ -147,14 +147,15 @@
   <script src="../../env.js"></script>
   <script src="../../js/api.js"></script>
   <script>
-    // Redirect if already logged in
-    if (localStorage.getItem('token')) {
-      window.location.href = '/dashboard';
-    }
-
     // ── Extract token from URL ─────────────────────────────────
     const urlParams = new URLSearchParams(window.location.search);
     const token     = urlParams.get('token');
+
+    // Allow password resets to proceed even for users with an existing session.
+    // Only redirect authenticated users when they open the page without a valid token.
+    if (localStorage.getItem('token') && (!token || !/^[a-f0-9]{64}$/i.test(token))) {
+      window.location.href = '/dashboard';
+    }
 
     const resetFormView    = document.getElementById('resetFormView');
     const invalidTokenView = document.getElementById('invalidTokenView');
