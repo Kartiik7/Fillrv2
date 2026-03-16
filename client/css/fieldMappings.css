@@ -16,6 +16,19 @@
 /* ── Keyword tags cell max-width constraint ───────────────────── */
 .adm-cell-kw { max-width: 300px; }
 
+/* ── Page-width overrides for field-mappings only ─────────────── */
+.adm-container {
+  max-width: 1440px;
+}
+
+#tableWrap {
+  overflow-x: auto;
+}
+
+#fmTable {
+  min-width: 1320px;
+}
+
 /* ── Interactive mapping rows (double-click to edit) ──────────── */
 #fmBody tr[data-key],
 #fmBody tr[data-key] td { cursor: pointer; }
@@ -26,8 +39,13 @@
   display: table-cell;
   white-space: nowrap;
 }
-#fmTable .adm-cell-actions .adm-tbl-btn + .adm-tbl-btn {
-  margin-left: 8px;
+#fmTable .adm-cell-actions .adm-tbl-btn,
+#fmTable .adm-cell-actions .adm-rank-input {
+  margin-right: 6px;
+}
+#fmTable .adm-cell-actions .adm-tbl-btn:last-child,
+#fmTable .adm-cell-actions .adm-rank-input:last-child {
+  margin-right: 0;
 }
 
 .adm-cell-rank {
