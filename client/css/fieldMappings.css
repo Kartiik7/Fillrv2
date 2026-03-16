@@ -95,6 +95,14 @@
   box-shadow: 0 0 0 3px var(--blue-glow);
 }
 
+#fmBody tr.is-rank-updating td {
+  opacity: 0.72;
+}
+
+#fmBody tr.is-rank-updating .adm-cell-actions {
+  cursor: progress;
+}
+
 /* ── Group header rows within table ───────────────────────── */
 .fm-group-row td {
   background: var(--bg);

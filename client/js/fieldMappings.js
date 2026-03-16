@@ -55,6 +55,7 @@ let _isFetching    = false;
 let _isSaving      = false;
 let _isDeleting    = false;
 let _searchQuery   = '';
+const _rankUpdateInFlight = new Set();
 
 // Per-category config: max entries allowed
 const KW_MAX = { primary: 30, secondary: 20, generic: 10, negative: 20 };
@@ -652,6 +653,29 @@ function deleteMapping(key) {
   openConfirmModal(key);
 }
 
+function setRankUpdatingState(key, on, triggerAction = null) {
+  const row = dom.fmBody.querySelector(`tr[data-key="${escAttr(key)}"]`);
+  if (!row) return;
+
+  row.classList.toggle('is-rank-updating', on);
+
+  row.querySelectorAll('[data-action], [data-rank-input]').forEach((el) => {
+    el.disabled = on;
+  });
+
+  const actionButtons = row.querySelectorAll('[data-action]');
+  actionButtons.forEach((btn) => {
+    if (!btn.dataset.defaultLabel) {
+      btn.dataset.defaultLabel = btn.textContent;
+    }
+    if (on && btn.dataset.action === triggerAction) {
+      btn.textContent = 'Updating…';
+    } else {
+      btn.textContent = btn.dataset.defaultLabel;
+    }
+  });
+}
+
 async function confirmDelete() {
   if (_isDeleting) return;
   if (!_pendingDelKey) return;
@@ -679,7 +703,13 @@ async function confirmDelete() {
   }
 }
 
-async function reorderMapping(key, payload) {
+async function reorderMapping(key, payload, triggerAction = null) {
+  if (_rankUpdateInFlight.has(key)) return;
+
+  _rankUpdateInFlight.add(key);
+  setRankUpdatingState(key, true, triggerAction);
+  showToast('Rank is updating. Please wait…', '', 2000);
+
   try {
     await apiFetch(`/admin/field-mappings/${encodeURIComponent(key)}/reorder`, {
       method: 'PATCH',
@@ -692,12 +722,15 @@ async function reorderMapping(key, payload) {
     if (err.message !== 'UNAUTHORIZED' && err.message !== 'FORBIDDEN') {
       showToast(err.message || 'Failed to reorder mapping.', 'error');
     }
+  } finally {
+    _rankUpdateInFlight.delete(key);
+    setRankUpdatingState(key, false);
   }
 }
 
 async function moveMapping(key, direction) {
   if (!key) return;
-  await reorderMapping(key, { direction });
+  await reorderMapping(key, { direction }, direction === 'up' ? 'move-up' : 'move-down');
 }
 
 async function setMappingRank(key, rank) {
@@ -705,7 +738,7 @@ async function setMappingRank(key, rank) {
     showToast('Rank must be a positive integer.', 'error');
     return;
   }
-  await reorderMapping(key, { order: rank });
+  await reorderMapping(key, { order: rank }, 'set-rank');
 }
 
 /* ════════════════════════════════════════════════════════════ *
