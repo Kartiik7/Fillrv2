@@ -65,6 +65,82 @@ const applyPicked = (subDoc, picked) => {
   });
 };
 
+const toNumeric = (value) => {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const n = Number(value);
+    return Number.isNaN(n) ? null : n;
+  }
+  return null;
+};
+
+const hasValue = (value) => {
+  if (value == null) return false;
+  if (typeof value === 'string') return value.trim() !== '';
+  return true;
+};
+
+const isPgProgram = (value) => {
+  const text = String(value || '').toLowerCase();
+  return [
+    'm.tech', 'mtech', 'master of technology',
+    'mba', 'master of business administration',
+    'mca', 'master of computer applications',
+    'm.sc', 'msc', 'master of science',
+    'm.e', 'master of engineering',
+  ].some((token) => text.includes(token));
+};
+
+const validateProfileBusinessRules = (profile) => {
+  const errors = [];
+  const sections = ['personal', 'academics', 'ids', 'links', 'education', 'placement'];
+
+  sections.forEach((section) => {
+    const source = profile?.[section] || {};
+    Object.entries(source).forEach(([key, val]) => {
+      if (val === '' || val == null) return;
+      const fullKey = `${section}.${key}`.toLowerCase();
+      const num = toNumeric(val);
+
+      if (fullKey.includes('age')) {
+        if (num == null) errors.push(`${fullKey} must be a number.`);
+        else if (num < 0) errors.push('Age cannot be negative.');
+      }
+
+      if (fullKey.includes('percentage') || fullKey.includes('percent')) {
+        if (num == null) errors.push(`${fullKey} must be a number.`);
+        else if (num < 0 || num > 100) errors.push(`${fullKey} must be between 0 and 100.`);
+      }
+
+      if (fullKey.includes('cgpa') || fullKey.includes('gpa')) {
+        if (num == null) errors.push(`${fullKey} must be a number.`);
+        else if (num < 0 || num > 10) errors.push(`${fullKey} must be between 0 and 10.`);
+      }
+
+      if (fullKey.includes('gap')) {
+        if (num == null) errors.push(`${fullKey} must be a number (months).`);
+        else if (num < 0 || num > 12) errors.push('Education gap must be between 0 and 12 months.');
+      }
+    });
+  });
+
+  const program = profile?.education?.program || profile?.education?.degree || '';
+  if (isPgProgram(program)) {
+    const ugDegree = profile?.academics?.ug_degree;
+    const ugPercentage = profile?.academics?.ug_percentage;
+    const ugUniversity = profile?.academics?.ug_university;
+    const ugCollege = profile?.academics?.ug_college;
+
+    if (!hasValue(ugDegree)) errors.push('UG degree is required for PG students.');
+    if (!hasValue(ugPercentage)) errors.push('UG percentage is required for PG students.');
+    if (!hasValue(ugUniversity) && !hasValue(ugCollege)) {
+      errors.push('UG university/college is required for PG students.');
+    }
+  }
+
+  return errors;
+};
+
 // ── GET /api/profile ──────────────────────────────────────────
 exports.getProfile = async (req, res, next) => {
   try {
@@ -114,6 +190,12 @@ exports.updateProfile = async (req, res, next) => {
     if (error) {
       const messages = error.details.map(d => d.message).join('; ');
       return res.status(400).json({ success: false, message: messages });
+    }
+
+    // Enforce business validation at API layer so invalid values never reach DB.
+    const businessErrors = validateProfileBusinessRules(value.profile || {});
+    if (businessErrors.length > 0) {
+      return res.status(400).json({ success: false, message: businessErrors[0] });
     }
 
     const user = await User.findById(req.user._id).select('-password -__v');

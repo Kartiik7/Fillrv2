@@ -43,8 +43,12 @@ const elementRegistry = new Map();
 // Protects against: PII (name, phone, DOB etc.) appearing in DevTools console
 // which could be read by browser extensions or observed during screen sharing.
 const DEBUG = false;
+const DIAG = false; // Enable temporarily for manual diagnostics only
 const log = (...args) => {
   if (DEBUG) console.log("FILLR DEBUG:", ...args);
+};
+const diag = (...args) => {
+  if (DEBUG || DIAG) console.log("FILLR DIAG:", ...args);
 };
 
 // Google Forms detection flag
@@ -52,8 +56,7 @@ const isGoogleForm = window.location.hostname.includes("docs.google.com");
 
 // MATCH_CONFIDENCE_THRESHOLD, HIGH_CONFIDENCE, MEDIUM_CONFIDENCE,
 // normalizeOption, normalizeLabel, calculateOptionScore, tokenize,
-// calculateAdvancedScore, hasNumericAnchor, preprocessConfig, preprocessMappings,
-// resolveConfigType, resolveInputType, isTypeCompatible, VALID_CONFIG_TYPES
+// calculateAdvancedScore, hasNumericAnchor, preprocessConfig, preprocessMappings
 // are defined in matcher.js (loaded before this script via manifest.json).
 //
 // Background message types used by this script:
@@ -371,33 +374,40 @@ const selectOption = (option) => {
   }
 };
 
+// Simple semantic matcher for dropdowns (bi-directional contains)
+const semanticMatch = (profileValue, optionText) => {
+  const p = String(profileValue || '').toLowerCase().trim();
+  const o = String(optionText || '').toLowerCase().trim();
+  if (!p || !o) return false;
+  return o.includes(p) || p.includes(o);
+};
+
+const waitForOptionsToRender = (ms = 300) =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
 /**
  * Fill a Google Forms dropdown using click simulation (no .value assignment)
+ * Handles elements with role="listbox" or aria-haspopup="listbox".
  * @param {HTMLElement} element - The listbox element
  * @param {string} profileValue - Value from profile to match
  * @returns {Promise<boolean>} True if option was selected
  */
 async function fillGoogleDropdown(element, profileValue) {
-  const normalizedProfile = normalizeOption(profileValue);
-
   element.click();
 
-  await new Promise((resolve) => setTimeout(resolve, 300));
+  await waitForOptionsToRender();
 
-  const options = document.querySelectorAll('div[role="option"]');
+  const options = document.querySelectorAll('[role="option"]');
 
   for (const option of options) {
-    const optionText = normalizeOption(option.innerText);
+    const text = option.innerText.toLowerCase().trim();
 
-    if (optionText.includes(normalizedProfile)) {
+    if (semanticMatch(profileValue, text)) {
       option.click();
       return true;
     }
   }
 
-  // Close dropdown if no match found
-  document.body.click();
-  await new Promise((resolve) => setTimeout(resolve, 100));
   return false;
 }
 
@@ -422,14 +432,21 @@ const getGoogleRadioOptionText = (radio) => {
   if (radio.getAttribute('data-answer-value')) {
     return radio.getAttribute('data-answer-value');
   }
-  
+
   // Method 4: Look for span with dir="auto" (Google Forms option text pattern)
   const spanWithDir = radio.querySelector('span[dir="auto"]');
   if (spanWithDir?.innerText?.trim()) {
     return spanWithDir.innerText.trim();
   }
   
-  // Method 5: Look for any span with text
+  // Method 5: Look for innerText directly on the radio element
+  // Google Forms often has the text directly inside the clickable div
+  const directText = radio.innerText?.trim();
+  if (directText && directText.length > 0 && directText.length < 100) {
+    return directText;
+  }
+
+  // Method 6: Look for any span with text inside the radio
   const spans = radio.querySelectorAll('span');
   for (const span of spans) {
     const text = span.innerText?.trim();
@@ -438,38 +455,50 @@ const getGoogleRadioOptionText = (radio) => {
     }
   }
   
-  // Method 6: Look for the deepest text content
-  const textContent = radio.innerText?.trim();
-  if (textContent) {
-    return textContent;
-  }
-  
   // Method 7: Check next sibling for label text (common pattern)
   const nextSibling = radio.nextElementSibling;
   if (nextSibling) {
     const siblingText = nextSibling.innerText?.trim();
-    if (siblingText) return siblingText;
+    if (siblingText && siblingText.length < 100) return siblingText;
   }
   
-  // Method 8: Check parent container's content-desc or text (for label divs)
+  // Method 8: Check parent's direct child text nodes and spans
   const parent = radio.parentElement;
   if (parent) {
+    // Look for sibling spans/divs with text
+    for (const child of parent.children) {
+      if (child !== radio && child.innerText?.trim()) {
+        const text = child.innerText.trim();
+        if (text.length > 0 && text.length < 100) return text;
+      }
+    }
+    
     // Look for content description
     const contentDesc = parent.querySelector('[data-value]');
     if (contentDesc?.getAttribute('data-value')) {
       return contentDesc.getAttribute('data-value');
     }
-    
-    // Clone and remove radio, get remaining text
+  }
+
+  // Method 9: Walk up to find the option container and extract text
+  // Google Forms wraps each option in a container div
+  let optionContainer = radio.closest('[data-value]');
+  if (optionContainer?.getAttribute('data-value')) {
+    return optionContainer.getAttribute('data-value');
+  }
+  
+  // Method 10: Last resort - clone parent, remove radio, get remaining text
+  if (parent) {
     const clone = parent.cloneNode(true);
     const radioInClone = clone.querySelector('[role="radio"]');
     if (radioInClone) radioInClone.remove();
     const remainingText = clone.innerText?.trim();
-    if (remainingText) return remainingText;
+    if (remainingText && remainingText.length < 100) return remainingText;
   }
   
+  if (DEBUG) log(`Radio text extraction failed for:`, radio.outerHTML?.substring(0, 200));
   return '';
-};
+}
 
 /**
  * Fill a Google Forms radio group using click simulation
@@ -520,73 +549,27 @@ async function fillGoogleDropdownHybrid(element, profileValue, fieldConfig) {
 
   // Click to open dropdown
   element.click();
-  await new Promise((resolve) => setTimeout(resolve, 300));
+  await waitForOptionsToRender();
 
-  const options = document.querySelectorAll('div[role="option"]');
+  const options = document.querySelectorAll('[role="option"]');
 
-  // Helper to check if target matches option (exact or whole word)
-  const matchesTarget = (optionText, target) => {
-    if (!target || target.length === 0) return false;
-    if (optionText === target) return true;
-    const wordBoundary = new RegExp(`\\b${target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
-    return wordBoundary.test(optionText);
-  };
-
-  // Layer 1a: Exact match first (highest priority)
   for (const option of options) {
-    const optionText = normalizeOption(option.innerText);
-    if (!optionText || optionText.length === 0) continue;
-    
-    for (const target of targetTexts) {
-      if (optionText === target) {
-        option.click();
-        if (DEBUG) log(`Google Dropdown Exact Match: "${profileValue}" -> "${option.innerText}"`);
-        return true;
-      }
+    const optionText = option.innerText.toLowerCase().trim();
+    if (!optionText) continue;
+
+    // Alias/semantic match
+    const aliasHit = targetTexts.some((t) => semanticMatch(t, optionText));
+    const semanticHit = semanticMatch(profileValue, optionText);
+
+    if (aliasHit || semanticHit) {
+      option.click();
+      if (DEBUG) log(`Google Dropdown Match: "${profileValue}" -> "${option.innerText}"`);
+      return true;
     }
   }
 
-  // Layer 1b: Whole word match (second priority)
-  for (const option of options) {
-    const optionText = normalizeOption(option.innerText);
-    if (!optionText || optionText.length === 0) continue;
-    
-    for (const target of targetTexts) {
-      if (target && target.length > 1 && matchesTarget(optionText, target)) {
-        option.click();
-        if (DEBUG) log(`Google Dropdown Word Match: "${profileValue}" -> "${option.innerText}"`);
-        return true;
-      }
-    }
-  }
-
-  // Layer 2: Semantic fallback (probabilistic)
-  let bestOption = null;
-  let bestScore = 0;
-
-  for (const option of options) {
-    const optionText = normalizeOption(option.innerText);
-    // Skip empty option texts
-    if (!optionText || optionText.length === 0) continue;
-    
-    const score = calculateOptionScore(optionText, normalizedProfile);
-    if (score > bestScore) {
-      bestScore = score;
-      bestOption = option;
-    }
-  }
-
-  if (bestOption && bestScore >= MATCH_CONFIDENCE_THRESHOLD) {
-    return true;
-  }
-
-  // Close dropdown if no match
-  document.body.click();
-  await new Promise((resolve) => setTimeout(resolve, 100));
   if (DEBUG)
-    log(
-      `Google Dropdown No Match: "${profileValue}" (best score: ${bestScore})`,
-    );
+    log(`Google Dropdown No Match: "${profileValue}"`);
   return false;
 }
 
@@ -614,6 +597,22 @@ function fillGoogleRadioHybrid(profileValue, fieldConfig, container = null) {
 
   const scope = container || document;
   const radios = scope.querySelectorAll('[role="radio"]');
+
+  if (DEBUG) {
+    log(`fillGoogleRadioHybrid called:`, {
+      profileValue,
+      normalizedProfile,
+      targetTexts,
+      containerTag: container?.tagName,
+      containerRole: container?.getAttribute?.('role'),
+      radiosFound: radios.length,
+    });
+    // Log all radio labels for debugging
+    for (const r of radios) {
+      const labelRaw = getGoogleRadioOptionText(r);
+      log(`  Radio option: "${labelRaw}" (normalized: "${normalizeOption(labelRaw)}")`);
+    }
+  }
 
   // Helper to check if target matches label (exact or whole word)
   const matchesTarget = (label, target) => {
@@ -672,7 +671,9 @@ function fillGoogleRadioHybrid(profileValue, fieldConfig, container = null) {
     }
   }
 
-  if (bestRadio && bestScore >= MATCH_CONFIDENCE_THRESHOLD) {
+  // Lower threshold for radios since options are limited and explicit
+  const RADIO_MATCH_THRESHOLD = 0.4;
+  if (bestRadio && bestScore >= RADIO_MATCH_THRESHOLD) {
     bestRadio.click();
     if (DEBUG)
       log(
@@ -829,40 +830,274 @@ const isNumericValue = (value) => {
 };
 
 /**
- * Format date value for different input types
+ * Parse a date string in multiple formats to { day, month, year } integers.
+ * Accepted formats: DD-MM-YYYY, DD/MM/YYYY, YYYY-MM-DD, YYYY/MM/DD
+ * Returns null if the value is not a recognised date format or is invalid.
+ *
+ * @param {string} value - Raw date string
+ * @returns {{ day: number, month: number, year: number } | null}
+ */
+const parseDateParts = (value) => {
+  if (!value || typeof value !== 'string') return null;
+  const v = value.trim();
+
+  let day, month, year;
+
+  // YYYY-MM-DD or YYYY/MM/DD
+  const isoMatch = v.match(/^(\d{4})[\-\/](\d{1,2})[\-\/](\d{1,2})$/);
+  if (isoMatch) {
+    year  = parseInt(isoMatch[1], 10);
+    month = parseInt(isoMatch[2], 10);
+    day   = parseInt(isoMatch[3], 10);
+  } else {
+    // DD-MM-YYYY or DD/MM/YYYY
+    const dmyMatch = v.match(/^(\d{1,2})[\-\/](\d{1,2})[\-\/](\d{4})$/);
+    if (dmyMatch) {
+      day   = parseInt(dmyMatch[1], 10);
+      month = parseInt(dmyMatch[2], 10);
+      year  = parseInt(dmyMatch[3], 10);
+    } else {
+      return null;
+    }
+  }
+
+  // Basic validation
+  if (month < 1 || month > 12 || day < 1 || day > 31 || year < 1900 || year > 2100) {
+    return null;
+  }
+  return { day, month, year };
+};
+
+/**
+ * Convert a date string to ISO format (YYYY-MM-DD).
+ * Returns null if the value cannot be parsed.
+ * @param {string} value
+ * @returns {string|null}
+ */
+const toISODate = (value) => {
+  const parts = parseDateParts(value);
+  if (!parts) return null;
+  const dd = String(parts.day).padStart(2, '0');
+  const mm = String(parts.month).padStart(2, '0');
+  return `${parts.year}-${mm}-${dd}`;
+};
+
+/**
+ * Convert a date string to DD-MM-YYYY display format.
+ * Returns null if the value cannot be parsed.
+ * @param {string} value
+ * @returns {string|null}
+ */
+const toDMYDate = (value) => {
+  const parts = parseDateParts(value);
+  if (!parts) return null;
+  const dd = String(parts.day).padStart(2, '0');
+  const mm = String(parts.month).padStart(2, '0');
+  return `${dd}-${mm}-${parts.year}`;
+};
+
+/**
+ * Dispatch input, change, and blur events on an element.
+ * @param {HTMLElement} el
+ */
+const dispatchDateEvents = (el) => {
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  el.dispatchEvent(new Event('blur', { bubbles: true }));
+};
+
+/**
+ * Detect split date inputs (separate day / month / year fields)
+ * near the given element and fill each part individually.
+ *
+ * Heuristic: walk up to the closest form-group / fieldset / parent
+ * and look for sibling inputs whose name, id, placeholder, or
+ * aria-label match day/month/year patterns.
+ *
+ * @param {HTMLElement} element - The matched date element
+ * @param {{ day: number, month: number, year: number }} parts
+ * @returns {boolean} True if split inputs were found and filled
+ */
+const trySplitDateFill = (element, parts) => {
+  // Walk up to a reasonable container (fieldset, form-group, or up to 4 parents)
+  let container = element.closest('fieldset') ||
+                  element.closest('.form-group') ||
+                  element.closest('[role="group"]');
+  if (!container) {
+    container = element.parentElement;
+    for (let i = 0; i < 3 && container?.parentElement; i++) {
+      if (container.querySelectorAll('input').length >= 3) break;
+      container = container.parentElement;
+    }
+  }
+  if (!container) return false;
+
+  const inputs = container.querySelectorAll('input');
+  if (inputs.length < 3) return false;
+
+  const DAY_RE   = /\b(day|dd)\b/i;
+  const MONTH_RE = /\b(month|mm)\b/i;
+  const YEAR_RE  = /\b(year|yyyy|yy)\b/i;
+
+  const identify = (el) => {
+    const haystack = [
+      el.name, el.id, el.placeholder,
+      el.getAttribute('aria-label'),
+    ].filter(Boolean).join(' ');
+    if (DAY_RE.test(haystack))   return 'day';
+    if (MONTH_RE.test(haystack)) return 'month';
+    if (YEAR_RE.test(haystack))  return 'year';
+    return null;
+  };
+
+  let dayEl = null, monthEl = null, yearEl = null;
+  for (const inp of inputs) {
+    const role = identify(inp);
+    if (role === 'day')   dayEl   = inp;
+    if (role === 'month') monthEl = inp;
+    if (role === 'year')  yearEl  = inp;
+  }
+
+  if (!dayEl || !monthEl || !yearEl) return false;
+
+  let changed = false;
+
+  const fillPart = (el, val) => {
+    // Do not overwrite user-entered values
+    if (el.value && el.value.trim() !== '') return;
+    const prev = el.value;
+    el.value = String(val);
+    dispatchDateEvents(el);
+    if (el.value !== prev) changed = true;
+  };
+
+  fillPart(dayEl,   String(parts.day).padStart(2, '0'));
+  fillPart(monthEl, String(parts.month).padStart(2, '0'));
+  fillPart(yearEl,  String(parts.year));
+
+  return changed;
+};
+
+/**
+ * Universal date field filler.
+ *
+ * Accepts date strings in DD-MM-YYYY, DD/MM/YYYY, YYYY-MM-DD, YYYY/MM/DD.
+ * Routes to the correct fill strategy based on the DOM element type:
+ *   • <input type="date">  → sets ISO (YYYY-MM-DD) value + dispatches events
+ *   • text/other inputs    → sets DD-MM-YYYY display value
+ *   • split inputs nearby  → fills day / month / year individually
+ *
+ * Does NOT overwrite fields that already contain user-entered values.
+ *
+ * @param {HTMLElement} element - The form field element
+ * @param {string} value - Raw date string from profile
+ * @returns {boolean} True if the value actually changed
+ */
+const fillDateField = (element, value) => {
+  if (!element || !value) return false;
+
+  const parts = parseDateParts(String(value));
+  if (!parts) {
+    if (DEBUG) log('fillDateField: unparseable date value:', value);
+    return false;
+  }
+
+  // Do not overwrite user-entered values
+  if (element.value && element.value.trim() !== '') return false;
+
+  // Attempt split-input fill first (day / month / year in separate fields)
+  if (trySplitDateFill(element, parts)) return true;
+
+  const domType = (element.type || '').toLowerCase();
+  const iso = toISODate(value);
+  const dmy = toDMYDate(value);
+  if (!iso || !dmy) return false;
+
+  const previousValue = element.value;
+
+  if (domType === 'date' || domType === 'datetime-local' || domType === 'month') {
+    // HTML5 date inputs require ISO format
+    element.value = iso;
+    // Use native setter to ensure frameworks (React, Angular) pick up the change
+    const nativeSetter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype, 'value'
+    )?.set;
+    if (nativeSetter) {
+      nativeSetter.call(element, iso);
+    }
+    dispatchDateEvents(element);
+  } else {
+    // Normal text input — use DD-MM-YYYY display format
+    element.value = dmy;
+    dispatchDateEvents(element);
+  }
+
+  return element.value !== previousValue && element.value.trim() !== '';
+};
+
+/**
+ * Format date value for different input types (legacy wrapper).
  * @param {string} value - Date value (could be various formats)
  * @param {string} inputType - The input type (date, text, etc.)
  * @returns {string} Formatted date string
  */
 const formatDateValue = (value, inputType) => {
-  if (!value) return '';
-  
-  let date;
-  
-  // If already in ISO format (YYYY-MM-DD), parse it
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    const [year, month, day] = value.split('-');
-    date = new Date(year, month - 1, day);
-  } else {
-    // Try to parse other formats
-    date = new Date(value);
+  if (inputType === 'date' || inputType === 'datetime-local' || inputType === 'month') {
+    return toISODate(value) || value || '';
   }
-  
-  if (isNaN(date.getTime())) {
-    return value; // Return as-is if not a valid date
+  return toDMYDate(value) || value || '';
+};
+
+/**
+ * Handle radio button fill — works for both standard HTML radios
+ * and Google Forms role="radio" elements.
+ * DOM type determines behavior, not mapping type.
+ * @param {HTMLElement} element - The radio element
+ * @param {string} value - The value to match
+ * @param {Object} [fieldConfig] - Config for the field (for aliases)
+ * @returns {boolean} True if a radio was selected
+ */
+const handleRadioFill = (element, value, fieldConfig) => {
+  const normalizedValue = normalizeOption(value);
+
+  // Standard HTML radio (input[type="radio"])
+  if (element.type === 'radio') {
+    // Try alias match first (deterministic)
+    const aliasMatch = tryAliasMatch(element, value, fieldConfig);
+    if (aliasMatch) { selectOption(aliasMatch); return true; }
+
+    // Try semantic match next (probabilistic)
+    const semanticMatch = trySemanticOptionMatch(element, value);
+    if (semanticMatch) { selectOption(semanticMatch); return true; }
+
+    // Fallback: direct name-based group matching
+    if (element.name) {
+      const radios = document.querySelectorAll(`input[name="${element.name}"]`);
+      for (const radio of radios) {
+        const optionLabel = normalizeOption(getRadioOptionLabel(radio));
+        const optionValue = normalizeOption(radio.value);
+        if (optionLabel.includes(normalizedValue) || normalizedValue.includes(optionLabel) ||
+            optionValue === normalizedValue) {
+          radio.checked = true;
+          radio.dispatchEvent(new Event("change", { bubbles: true }));
+          return true;
+        }
+      }
+    }
+    return false;
   }
-  
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  
-  if (inputType === 'date') {
-    // Format as YYYY-MM-DD for HTML5 date inputs
-    return `${year}-${month}-${day}`;
+
+  // Google Forms radio (role="radio") — simulate click, never set .value
+  if (element.getAttribute('role') === 'radio') {
+    const optionText = normalizeOption(getGoogleRadioOptionText(element));
+    if (optionText.includes(normalizedValue) || normalizedValue.includes(optionText)) {
+      element.click();
+      return true;
+    }
+    return false;
   }
-  
-  // Format as DD/MM/YYYY for text inputs
-  return `${day}/${month}/${year}`;
+
+  return false;
 };
 
 const fillField = (element, value, fieldConfig) => {
@@ -870,33 +1105,27 @@ const fillField = (element, value, fieldConfig) => {
     return false;
   }
 
-  const inputType = element.type
-    ? element.type.toLowerCase()
-    : element.tagName.toLowerCase();
+  // ── Fill Engine: DOM determines HOW to fill ──────────────────
+  // Mapping only provides WHAT to fill (value + options for alias matching).
+  // All fill-strategy decisions are based on DOM element type.
+  const isRadioEl = element.type === 'radio' || element.getAttribute('role') === 'radio';
+  const isSelectEl = element.tagName === 'SELECT';
+  const isGoogleListboxEl = element.getAttribute('role') === 'listbox';
+  const domType = (element.type || element.tagName || '').toLowerCase();
 
-  // NUMERIC ENFORCEMENT: Skip if field expects numeric but value isn't
-  if (fieldConfig?.isNumeric) {
-    if ((inputType === 'number' || inputType === 'tel') && !isNumericValue(value)) {
-      if (DEBUG) log(`Numeric Skip: "${value}" is not numeric for field expecting number`);
-      return false;
-    }
+  // RADIO HANDLING (DOM-driven)
+  if (isRadioEl) {
+    if (DEBUG) log(`Radio fill: "${value}"`, element.name || element.getAttribute('role'));
+    return handleRadioFill(element, value, fieldConfig);
   }
 
-  // DATE HANDLING: Format date values appropriately
-  if (fieldConfig?.isDate) {
-    const formattedDate = formatDateValue(value, inputType);
-    if (formattedDate) {
-      element.value = formattedDate;
-      element.dispatchEvent(new Event("input", { bubbles: true }));
-      element.dispatchEvent(new Event("change", { bubbles: true }));
-      element.dispatchEvent(new Event("blur", { bubbles: true }));
-      return true;
-    }
+  // GOOGLE LISTBOX (handled separately in Google Forms pass; skip here)
+  if (isGoogleListboxEl) {
     return false;
   }
 
-  // HYBRID FLOW for Select/Radio
-  if (element.tagName === "SELECT" || inputType === "radio") {
+  // SELECT DROPDOWN
+  if (isSelectEl) {
     // 1. Controlled Alias Match (Deterministic)
     const aliasMatch = tryAliasMatch(element, value, fieldConfig);
     if (aliasMatch) {
@@ -905,25 +1134,33 @@ const fillField = (element, value, fieldConfig) => {
     }
 
     // 2. Semantic Fallback (Probabilistic)
-    const semanticMatch = trySemanticOptionMatch(element, value);
-    if (semanticMatch) {
-      selectOption(semanticMatch);
+    const semanticResult = trySemanticOptionMatch(element, value);
+    if (semanticResult) {
+      selectOption(semanticResult);
       return true;
     }
 
-    // 3. Fallback to existing manual confirmation logic (return false)
+    // 3. No match
     return false;
   }
 
-  // --- TEXT / TEXTAREA / OTHER ---
-  if (element.value === value) return true;
+  // --- DEFAULT: TEXT / TEXTAREA / NUMBER / URL / DATE / etc ---
+  // DOM-driven date formatting: if element expects a date, format to YYYY-MM-DD
+  let fillValue = String(value);
+  if (domType === 'date' || domType === 'datetime-local' || domType === 'month') {
+    fillValue = formatDateValue(value, domType);
+    if (!fillValue) return false;
+  }
 
-  element.value = value;
+  // Only count as filled if value actually changed
+  const previousValue = element.value;
+  element.value = fillValue;
   element.dispatchEvent(new Event("input", { bubbles: true }));
   element.dispatchEvent(new Event("change", { bubbles: true }));
   element.dispatchEvent(new Event("blur", { bubbles: true }));
 
-  return true;
+  // Return true only if value actually changed
+  return element.value !== previousValue && element.value.trim() !== '';
 };
 
 /**
@@ -965,6 +1202,54 @@ const isSafeToFill = (element) => {
   }
 
   return true;
+};
+
+/**
+ * Check if a field already has a user-entered value.
+ * Used to prevent re-filling already-filled fields and to filter
+ * medium-confidence suggestions to unfilled fields only.
+ * @param {HTMLElement} element - The form field element
+ * @returns {boolean} True if the field already has a value
+ */
+const fieldHasUserValue = (element) => {
+  if (!element) return false;
+
+  // Radio: checked means already selected
+  if (element.type === 'radio') {
+    return element.checked;
+  }
+
+  // Google Forms radio container: check if any child radio is selected
+  if (element.getAttribute && element.getAttribute('role') === 'radiogroup') {
+    return !!element.querySelector('[role="radio"][aria-checked="true"]');
+  }
+  // For a role="radio" element directly
+  if (element.getAttribute && element.getAttribute('role') === 'radio') {
+    return element.getAttribute('aria-checked') === 'true';
+  }
+
+  // Google Forms listbox: check if a REAL (non-placeholder) option is selected.
+  // Google Forms pre-selects the "Choose" placeholder with aria-selected="true"
+  // on initial render, so we must ignore placeholder-like options.
+  if (element.getAttribute && element.getAttribute('role') === 'listbox') {
+    const selectedOptions = element.querySelectorAll('[aria-selected="true"]');
+    for (const opt of selectedOptions) {
+      const text = (opt.innerText || '').trim().toLowerCase();
+      // Ignore common placeholder texts — these don't count as user selections
+      if (text && text !== 'choose' && text !== 'select' && text !== '--' && text !== '') {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Select: index > 0 means user picked something beyond the placeholder
+  if (element.tagName === 'SELECT') {
+    return element.selectedIndex > 0;
+  }
+
+  // Text/number/etc: non-empty trimmed value
+  return !!(element.value && element.value.trim() !== '');
 };
 
 // ── Remote field mapping support ──────────────────────────────
@@ -1096,16 +1381,47 @@ const _getPersistedMappings = () =>
   new Promise((resolve) => {
     chrome.storage.local.get([STORAGE_MAPPINGS_KEY], (result) => {
       const mappings = result[STORAGE_MAPPINGS_KEY];
-      if (mappings && typeof mappings === 'object' && !Array.isArray(mappings)) {
-        resolve(mappings);
+      if (!mappings) {
+        resolve(null);
         return;
       }
-      resolve(null);
+      resolve(mappings);
     });
   });
 
 const _setPersistedMappings = (mappings) => {
   chrome.storage.local.set({ [STORAGE_MAPPINGS_KEY]: mappings });
+};
+
+// Transform backend array payload into V1 FIELD_MAP shape
+const buildFieldMap = (mappingsArray = []) => {
+  const map = {};
+  mappingsArray.forEach((mapping) => {
+    if (!mapping || !mapping.key) return;
+    map[mapping.key] = {
+      path: mapping.path,
+      primary: mapping.primary || [],
+      secondary: mapping.secondary || [],
+      generic: mapping.generic || [],
+      negative: mapping.negative || [],
+      requiredAnchors: mapping.requiredAnchors || [],
+      exclusionAnchors: mapping.exclusionAnchors || [],
+      numericAnchors: mapping.numericAnchors || [],
+      options: mapping.options || {},
+      isNumeric: mapping.isNumeric || false,
+      isDate: mapping.isDate || false,
+    };
+  });
+  return map;
+};
+
+// Normalize server/storage payload shape to array
+const normalizeMappingsArray = (mappings) => {
+  if (Array.isArray(mappings)) return mappings;
+  if (mappings && typeof mappings === 'object') {
+    return Object.entries(mappings).map(([key, value]) => ({ key, ...(value || {}) }));
+  }
+  return [];
 };
 
 /**
@@ -1146,6 +1462,7 @@ const loadRemoteFieldMappings = async () => {
       persistedVersion === _fieldMapCache.version
     ) {
       FIELD_MAP = _fieldMapCache.map;
+      if (DEBUG) log("FIELD_MAP keys:", Object.keys(FIELD_MAP));
       if (DEBUG) log(`Fast path: version=${persistedVersion} unchanged, map re-applied (0 network calls)`);
       return true;
     }
@@ -1160,19 +1477,18 @@ const loadRemoteFieldMappings = async () => {
     // ── ⑥ DB empty or server error ────────────────────────────
     // Fall back to hard-coded defaults.  Cache is intentionally NOT updated
     // so the next call retries rather than treating the error as "current."
-    if (
-      !resp?.success ||
-      !resp.mappings ||
-      typeof resp.mappings !== "object" ||
-      Object.keys(resp.mappings).length === 0
-    ) {
+    const respMappingsArray = normalizeMappingsArray(resp?.mappings);
+
+    if (!resp?.success || respMappingsArray.length === 0) {
       const cachedMappings = await _getPersistedMappings();
-      if (cachedMappings && Object.keys(cachedMappings).length > 0) {
-        const cachedProcessed = preprocessMappings(cachedMappings);
+      const cachedArray = normalizeMappingsArray(cachedMappings);
+      if (cachedArray.length > 0) {
+        const cachedProcessed = preprocessMappings(buildFieldMap(cachedArray));
         FIELD_MAP = cachedProcessed;
         if (persistedVersion !== null) {
           _cacheStore(persistedVersion, cachedProcessed);
         }
+        if (DEBUG) log("FIELD_MAP keys:", Object.keys(FIELD_MAP));
         if (DEBUG) log('Config fetch failed — using persisted cached mappings');
         return true;
       }
@@ -1208,7 +1524,14 @@ const loadRemoteFieldMappings = async () => {
 
     const newMap = {};
 
-    for (const [key, remote] of Object.entries(resp.mappings)) {
+    const baseMap = buildFieldMap(respMappingsArray);
+
+    // Build a lookup of RAW DB entries (before buildFieldMap normalisation)
+    // so pick() can distinguish "field missing from DB" vs "field is empty []".
+    const rawLookup = {};
+    respMappingsArray.forEach(m => { if (m?.key) rawLookup[m.key] = m; });
+
+    for (const [key, remote] of Object.entries(baseMap)) {
       // Block prototype pollution
       if (
         typeof key !== "string" ||
@@ -1238,8 +1561,19 @@ const loadRemoteFieldMappings = async () => {
         ? remote.negative.filter(isValidKeyword).map((kw) => kw.toLowerCase().trim()).slice(0, 20)
         : [];
 
-      // Local defaults supply matching metadata the admin UI doesn't manage
+      // Merge matching metadata: DB-first, with defaults as fallback.
+      // buildFieldMap() normalises missing fields to []/{}/ false, which
+      // masks "DB doesn't have this field" vs "DB explicitly set empty".
+      // To distinguish, we check the RAW DB entry (before normalisation).
+      const rawEntry = rawLookup[key] || {};
       const d = FIELD_MAP_DEFAULTS[key] || {};
+
+      // Use raw DB value if it ACTUALLY exists in the DB document.
+      // Fall back to hardcoded defaults otherwise.
+      const pick = (rawField, defaultVal) => {
+        if (rawField !== undefined) return rawField;
+        return defaultVal;
+      };
 
       newMap[key] = {
         path:      remote.path,
@@ -1247,12 +1581,12 @@ const loadRemoteFieldMappings = async () => {
         secondary: cleanSecondary,
         generic:   cleanGeneric,
         negative:  cleanNegative,
-        ...(d.options          !== undefined && { options:          d.options }),
-        ...(d.isDate           !== undefined && { isDate:           d.isDate }),
-        ...(d.isNumeric        !== undefined && { isNumeric:        d.isNumeric }),
-        ...(d.requiredAnchors  !== undefined && { requiredAnchors:  d.requiredAnchors }),
-        ...(d.numericAnchors   !== undefined && { numericAnchors:   d.numericAnchors }),
-        ...(d.exclusionAnchors !== undefined && { exclusionAnchors: d.exclusionAnchors }),
+        options:          pick(rawEntry.options,          d.options),
+        isDate:           pick(rawEntry.isDate,           d.isDate),
+        isNumeric:        pick(rawEntry.isNumeric,        d.isNumeric),
+        requiredAnchors:  pick(rawEntry.requiredAnchors,  d.requiredAnchors),
+        numericAnchors:   pick(rawEntry.numericAnchors,   d.numericAnchors),
+        exclusionAnchors: pick(rawEntry.exclusionAnchors, d.exclusionAnchors),
       };
     }
 
@@ -1263,10 +1597,11 @@ const loadRemoteFieldMappings = async () => {
     if (returnedVersion !== null) {
       _cacheStore(returnedVersion, processedMap);
       _setPersistedVersion(returnedVersion);
-      _setPersistedMappings(newMap);
+      _setPersistedMappings(respMappingsArray);
     }
 
     FIELD_MAP = processedMap;
+    if (DEBUG) log("FIELD_MAP keys:", Object.keys(FIELD_MAP));
 
     if (DEBUG) {
       const action = persistedVersion === returnedVersion ? 'cold rebuild' : 'version bump';
@@ -1276,16 +1611,19 @@ const loadRemoteFieldMappings = async () => {
     return true;
 
   } catch (_err) {
+    console.error('[Content] Config fetch failed', _err);
     try {
       const persistedVersion = await _getPersistedVersion();
       const cachedMappings = await _getPersistedMappings();
+      const cachedArray = normalizeMappingsArray(cachedMappings);
 
-      if (cachedMappings && Object.keys(cachedMappings).length > 0) {
-        const cachedProcessed = preprocessMappings(cachedMappings);
+      if (cachedArray.length > 0) {
+        const cachedProcessed = preprocessMappings(buildFieldMap(cachedArray));
         FIELD_MAP = cachedProcessed;
         if (persistedVersion !== null) {
           _cacheStore(persistedVersion, cachedProcessed);
         }
+        if (DEBUG) log("FIELD_MAP keys:", Object.keys(FIELD_MAP));
         if (DEBUG) log('Exception during config fetch — using persisted cached mappings');
         return true;
       }
@@ -1695,135 +2033,100 @@ const getValueByPath = (obj, path) => {
 };
 
 /**
- * Find the best matching field with confidence score using weighted keyword matching.
- * Enforces type compatibility, numericAnchors and requiredAnchors before scoring.
+ * Matching Engine Module (pure function)
  *
- * @param {string} fieldText  - Combined text from label, placeholder, name, id
- * @param {'text'|'number'|'date'|'select'|'boolean'} inputType
- *   Schema type of the actual DOM element (from resolveInputType()).
- *   Any config whose resolved type is incompatible with inputType is skipped
- *   entirely (score = 0) before keyword scoring begins.
- * @returns {{bestMatch: string|null, score: number}}
+ * Find the best matching field using weighted keyword scoring.
+ * No type-based blocking, no hard binary filters.
+ * All anchors (required, numeric, exclusion) are handled as scoring
+ * bonuses/penalties inside calculateAdvancedScore.
+ *
+ * Pipeline: normalizedLabel → tokenize → score all configs → best match + confidence
+ *
+ * @param {string} fieldText - Combined normalised text from label, placeholder, name, id
+ * @returns {{bestMatch: string|null, score: number, confidence: number}}
+ *   bestMatch  – FIELD_MAP key or null
+ *   score      – raw integer score of best match
+ *   confidence – normalised [0,1] confidence of best match
  */
-const findBestMatchWithScore = (fieldText, inputType) => {
+const findBestMatchWithScore = (fieldText) => {
   const tokens = tokenize(fieldText);
 
   let bestMatch = null;
   let highestScore = 0;
+  let bestConfidence = 0;
 
   for (const key in FIELD_MAP) {
     const config = FIELD_MAP[key];
 
-    // ── Type guard ────────────────────────────────────────────
-    // config.type is resolved once at preprocessing time via resolveConfigType().
-    // Skip the entire config when the DOM element cannot accept this data type.
-    if (!isTypeCompatible(config.type, inputType)) {
-      if (DEBUG)
-        log(`Type Skip: "${fieldText.substring(0, 40)}" (input="${inputType}") rejected for "${key}" (config="${config.type}")`);
-      continue;
-    }
+    // Pure scoring — all anchors (numeric, required, exclusion) are
+    // handled as bonuses/penalties inside calculateAdvancedScore.
+    // No binary blocking here.
+    const result = calculateAdvancedScore(tokens, config, key);
 
-    // Check numeric anchor requirement first (e.g. 10th, 12th)
-    if (!hasNumericAnchor(tokens, config.numericAnchors)) {
-      if (DEBUG)
-        log(
-          `Anchor Skip [numericAnchor]: "${fieldText.substring(0, 40)}" rejected for "${key}"`,
-        );
-      continue;
-    }
-
-    // Check required text anchors (e.g. grad/ug for graduation_percentage, cgpa/cpi for cgpa)
-    if (config.requiredAnchors && config.requiredAnchors.length > 0) {
-      if (!hasNumericAnchor(tokens, config.requiredAnchors)) {
-        if (DEBUG)
-          log(
-            `Anchor Skip [requiredAnchor]: "${fieldText.substring(0, 40)}" rejected for "${key}"`,
-          );
-        continue;
-      }
-    }
-
-    // Check exclusion anchors (e.g. "post graduation" blocks graduation_percentage)
-    if (config.exclusionAnchors && config.exclusionAnchors.length > 0) {
-      if (hasNumericAnchor(tokens, config.exclusionAnchors)) {
-        if (DEBUG)
-          log(
-            `Anchor Skip [exclusionAnchor]: "${fieldText.substring(0, 40)}" rejected for "${key}"`,
-          );
-        continue;
-      }
-    }
-
-    const score = calculateAdvancedScore(tokens, config);
-
-    if (DEBUG && score > 0) {
+    if (DEBUG && result.score > 0) {
       log(
-        `Score: "${fieldText.substring(0, 40)}" -> ${key} = ${score.toFixed(2)} (Anchor: passed)`,
+        `Score: "${fieldText.substring(0, 40)}" -> ${key} = ${result.score} (conf: ${result.confidence.toFixed(2)})`,
       );
     }
 
-    if (score > highestScore) {
-      highestScore = score;
+    if (result.score > highestScore) {
+      highestScore = result.score;
+      bestConfidence = result.confidence;
       bestMatch = key;
     }
   }
 
   if (DEBUG) {
     log(
-      `Best Match: "${fieldText.substring(0, 40)}" -> ${bestMatch || "NONE"} (Score: ${highestScore.toFixed(2)})`,
+      `Best Match: "${fieldText.substring(0, 40)}" -> ${bestMatch || "NONE"} (Score: ${highestScore}, Conf: ${bestConfidence.toFixed(2)})`,
     );
   }
 
-  return { bestMatch, score: highestScore };
+  return { bestMatch, score: highestScore, confidence: bestConfidence };
 };
 
 /**
- * Match a field to profile data using confidence scoring
- * @param {Object} fieldData - Field metadata (label, placeholder, name, id, type)
- * @param {string} [fieldData.type] - element.type or element.tagName.toLowerCase();
- *   used by resolveInputType() to enforce schema type compatibility during matching.
- * @param {Object} profile - User profile data
- * @returns {Object} Object with value and confidence score
+ * Orchestrator: Matching Engine + Value Resolver
+ *
+ * 1. Matching Engine: (normalizedLabel, FIELD_MAP) → bestMatch + confidence
+ * 2. Value Resolver:  (profile, mapping.path) → value
+ *
+ * No type-based blocking. DOM type is irrelevant for matching.
+ *
+ * @param {Object} fieldData - Field metadata (label, placeholder, name, id)
+ * @param {Object} profile   - User profile data
+ * @returns {{value: *, matchKey: string|null, confidence: number}}
  */
 const matchFieldToProfile = (fieldData, profile) => {
-  const { label, placeholder, name, id, type } = fieldData;
+  const { label, placeholder, name, id } = fieldData;
 
   // Normalise once: lowercase, remove punctuation, collapse spaces.
-  // normalizeLabel() is idempotent, so tokenize() inside findBestMatchWithScore
-  // operates on already-clean text without redundant work.
   const combinedText = normalizeLabel(`${label} ${placeholder} ${name} ${id}`);
 
-  // Map the DOM element's type to the schema type used by the config's `type`
-  // field.  resolveInputType() is defined in matcher.js.  Passing this through
-  // lets findBestMatchWithScore skip configs that can never fill this element.
-  const inputType = resolveInputType(type || 'text');
+  // ── Matching Engine: pure scoring ──────────────────────────
+  const { bestMatch, confidence } = findBestMatchWithScore(combinedText);
 
-  // Find matching field using scoring engine
-  const { bestMatch, score } = findBestMatchWithScore(combinedText, inputType);
-
-  if (!bestMatch || score < MEDIUM_CONFIDENCE) {
-    if (DEBUG && score > 0.1)
+  if (!bestMatch || confidence < MEDIUM_CONFIDENCE) {
+    if (DEBUG && confidence > 0)
       log(
-        `Match Failed for "${combinedText.substring(0, 30)}..." -> Best: ${bestMatch} (${score})`,
+        `Match Failed: "${combinedText.substring(0, 30)}..." -> Best: ${bestMatch} (conf: ${confidence.toFixed(2)})`,
       );
-    return { value: null, matchKey: null, confidence: score };
+    return { value: null, matchKey: null, confidence };
   }
 
   if (DEBUG)
     log(
-      `Matched "${combinedText.substring(0, 30)}..." -> ${bestMatch} (Score: ${score})`,
+      `Matched: "${combinedText.substring(0, 30)}..." -> ${bestMatch} (conf: ${confidence.toFixed(2)})`,
     );
 
-  // Get configuration for matched field
+  // ── Value Resolver: pure path lookup ───────────────────────
   const config = FIELD_MAP[bestMatch];
-
-  // Extract value using path resolver
   const value = getValueByPath(profile, config.path);
 
   return {
     value: value || null,
     matchKey: bestMatch,
-    confidence: score,
+    confidence,
   };
 };
 
@@ -1848,6 +2151,16 @@ const autofillPage = async (profile, domain = null, siteMappings = {}, options =
 
   // Reset registry for this run to avoid stale references across page changes.
   elementRegistry.clear();
+
+  if (DEBUG || DIAG) {
+    const mappingCount = FIELD_MAP ? Object.keys(FIELD_MAP).length : 0;
+    diag('Autofill start', {
+      host: window.location.host,
+      isGoogleForm,
+      dryRun,
+      mappingCount,
+    });
+  }
 
   // Standard HTML form selectors
   const selectors = [
@@ -1913,6 +2226,16 @@ const autofillPage = async (profile, domain = null, siteMappings = {}, options =
 
       const normalizedLabel = labelText.toLowerCase().trim();
 
+      // Skip if field already has a user-entered value
+      if (fieldHasUserValue(element)) {
+        skippedFields.push({
+          reason: 'already filled',
+          label: labelText,
+          type: fieldData.type,
+        });
+        return;
+      }
+
       // CHECK LEARNED MAPPINGS FIRST (before confidence scoring)
       if (siteMappings[normalizedLabel]) {
         const learnedKey = siteMappings[normalizedLabel];
@@ -1934,7 +2257,12 @@ const autofillPage = async (profile, domain = null, siteMappings = {}, options =
               return;
             }
 
-            if (fillField(element, value, config)) {
+            // Route date fields through fillDateField
+            const learnedFillSuccess = config.isDate
+              ? fillDateField(element, value)
+              : fillField(element, value, config);
+
+            if (learnedFillSuccess) {
               autoFilledCount++;
               learnedFills.push({
                 label: labelText,
@@ -1969,7 +2297,10 @@ const autofillPage = async (profile, domain = null, siteMappings = {}, options =
             return;
           }
 
-          const success = fillField(element, value, config);
+          // Route date fields through fillDateField
+          const success = config.isDate
+            ? fillDateField(element, value)
+            : fillField(element, value, config);
 
           if (success) {
             autoFilledCount++;
@@ -1980,10 +2311,21 @@ const autofillPage = async (profile, domain = null, siteMappings = {}, options =
               confidence: confidence,
               type: fieldData.type,
             });
-            log(`Auto-filled (${(confidence * 100).toFixed(0)}%): "${labelText}"`);
+          }
+
+          // Debug: structured fill report (never log actual values in production)
+          if (DEBUG) {
+            log(`[FILL REPORT]`, {
+              label: labelText,
+              bestMatch: matchKey,
+              score: confidence,
+              confidence: confidence >= HIGH_CONFIDENCE ? 'HIGH' : 'MEDIUM',
+              valueResolved: !!value,
+              fillSuccess: success,
+            });
           }
         }
-        // Medium confidence - require confirmation
+        // Medium confidence - only suggest for unfilled fields
         else if (confidence >= MEDIUM_CONFIDENCE) {
           pendingConfirmations.push({
             fieldId: fieldId,
@@ -1993,6 +2335,16 @@ const autofillPage = async (profile, domain = null, siteMappings = {}, options =
             confidence: confidence,
             type: fieldData.type,
           });
+          if (DEBUG) {
+            log(`[FILL REPORT]`, {
+              label: labelText,
+              bestMatch: matchKey,
+              score: confidence,
+              confidence: 'MEDIUM (pending)',
+              valueResolved: !!value,
+              fillSuccess: false,
+            });
+          }
         }
       } else {
         skippedFields.push({
@@ -2002,6 +2354,16 @@ const autofillPage = async (profile, domain = null, siteMappings = {}, options =
           confidence: confidence || 0,
           type: fieldData.type,
         });
+        if (DEBUG) {
+          log(`[FILL REPORT]`, {
+            label: labelText,
+            bestMatch: matchKey || 'NONE',
+            score: confidence || 0,
+            confidence: 'SKIPPED',
+            valueResolved: !!value,
+            fillSuccess: false,
+          });
+        }
       }
     });
   });
@@ -2027,6 +2389,16 @@ const autofillPage = async (profile, domain = null, siteMappings = {}, options =
 
       const fieldId = `gd_${globalFieldIndex++}`;
       elementRegistry.set(fieldId, element);
+
+      // Skip if dropdown already has a selected value
+      if (fieldHasUserValue(element)) {
+        skippedFields.push({
+          reason: 'already filled',
+          label: labelText,
+          type: 'google-dropdown',
+        });
+        continue;
+      }
 
       const fieldData = {
         label: labelText,
@@ -2101,7 +2473,17 @@ const autofillPage = async (profile, domain = null, siteMappings = {}, options =
               confidence,
               type: "google-dropdown",
             });
-            log(`Google Dropdown (${(confidence * 100).toFixed(0)}%): "${labelText}"`);
+          }
+          if (DEBUG) {
+            log(`[FILL REPORT]`, {
+              label: labelText,
+              bestMatch: matchKey,
+              score: confidence,
+              confidence: 'HIGH',
+              valueResolved: !!value,
+              fillSuccess: filled,
+              fieldType: 'google-dropdown',
+            });
           }
         } else if (confidence >= MEDIUM_CONFIDENCE) {
           pendingConfirmations.push({
@@ -2127,6 +2509,10 @@ const autofillPage = async (profile, domain = null, siteMappings = {}, options =
     const processedRadioContainers = new Set();
     const googleRadios = document.querySelectorAll('[role="radio"]');
 
+    if (DEBUG) {
+      log(`[RADIO DEBUG] Found ${googleRadios.length} total Google radio elements in document`);
+    }
+
     for (const radio of googleRadios) {
       const container = radio.closest('[role="listitem"]');
       if (!container || processedRadioContainers.has(container)) continue;
@@ -2134,6 +2520,15 @@ const autofillPage = async (profile, domain = null, siteMappings = {}, options =
 
       const heading = container.querySelector('[role="heading"]');
       const labelText = (heading?.innerText || "").toLowerCase().trim();
+
+      if (DEBUG) {
+        log(`[RADIO DEBUG] Processing container:`, {
+          headingText: heading?.innerText,
+          labelText,
+          containerRole: container.getAttribute('role'),
+          radiosInContainer: container.querySelectorAll('[role="radio"]').length,
+        });
+      }
 
       // Safety: skip empty/unsafe labels
       if (!labelText || isUnsafeLabel(labelText)) {
@@ -2196,6 +2591,15 @@ const autofillPage = async (profile, domain = null, siteMappings = {}, options =
       const matchResult = matchFieldToProfile(fieldData, profile);
       const { value, matchKey, confidence } = matchResult;
 
+      if (DEBUG) {
+        log(`[RADIO DEBUG] Match result for "${labelText}":`, {
+          matchKey,
+          value,
+          confidence,
+          meetsHighThreshold: confidence >= HIGH_CONFIDENCE,
+        });
+      }
+
       if (value && matchKey) {
         const config = FIELD_MAP[matchKey];
         if (confidence >= HIGH_CONFIDENCE) {
@@ -2221,7 +2625,17 @@ const autofillPage = async (profile, domain = null, siteMappings = {}, options =
               confidence,
               type: "google-radio",
             });
-            log(`Google Radio (${(confidence * 100).toFixed(0)}%): "${labelText}"`);
+          }
+          if (DEBUG) {
+            log(`[FILL REPORT]`, {
+              label: labelText,
+              bestMatch: matchKey,
+              score: confidence,
+              confidence: 'HIGH',
+              valueResolved: !!value,
+              fillSuccess: filled,
+              fieldType: 'google-radio',
+            });
           }
         } else if (confidence >= MEDIUM_CONFIDENCE) {
           pendingConfirmations.push({
@@ -2255,186 +2669,9 @@ const autofillPage = async (profile, domain = null, siteMappings = {}, options =
   };
 };
 
-/**
- * Render a minimal floating confirmation popup and resolve with the user action.
- * This popup does not lock page scroll or add a full-screen backdrop.
- * @param {number} fillCount
- * @returns {Promise<boolean>} true when confirmed, false when cancelled
- */
-const showAutofillConfirmationPopup = (fillCount) => {
-  return new Promise((resolve) => {
-    const existing = document.getElementById('fillr-prefill-confirm');
-    if (existing) existing.remove();
-
-    const popup = document.createElement('div');
-    popup.id = 'fillr-prefill-confirm';
-    popup.style.position = 'fixed';
-    popup.style.right = '16px';
-    popup.style.bottom = '16px';
-    popup.style.zIndex = '2147483647';
-    popup.style.background = '#ffffff';
-    popup.style.border = '1px solid #e2e8f0';
-    popup.style.borderRadius = '10px';
-    popup.style.padding = '12px';
-    popup.style.minWidth = '220px';
-    popup.style.boxShadow = '0 8px 24px rgba(15, 23, 42, 0.12)';
-    popup.style.fontFamily = 'Inter, system-ui, -apple-system, sans-serif';
-    popup.style.color = '#1e293b';
-
-    const text = document.createElement('div');
-    text.textContent = `Fill ${fillCount} fields?`;
-    text.style.fontSize = '14px';
-    text.style.fontWeight = '600';
-    text.style.marginBottom = '10px';
-
-    const actions = document.createElement('div');
-    actions.style.display = 'flex';
-    actions.style.gap = '8px';
-
-    const confirmBtn = document.createElement('button');
-    confirmBtn.type = 'button';
-    confirmBtn.textContent = 'Confirm';
-    confirmBtn.style.border = 'none';
-    confirmBtn.style.borderRadius = '7px';
-    confirmBtn.style.padding = '7px 10px';
-    confirmBtn.style.cursor = 'pointer';
-    confirmBtn.style.fontSize = '12px';
-    confirmBtn.style.fontWeight = '600';
-    confirmBtn.style.background = '#2563eb';
-    confirmBtn.style.color = '#ffffff';
-
-    const cancelBtn = document.createElement('button');
-    cancelBtn.type = 'button';
-    cancelBtn.textContent = 'Cancel';
-    cancelBtn.style.border = '1px solid #e2e8f0';
-    cancelBtn.style.borderRadius = '7px';
-    cancelBtn.style.padding = '7px 10px';
-    cancelBtn.style.cursor = 'pointer';
-    cancelBtn.style.fontSize = '12px';
-    cancelBtn.style.fontWeight = '600';
-    cancelBtn.style.background = '#ffffff';
-    cancelBtn.style.color = '#64748b';
-
-    const cleanup = () => {
-      if (popup.parentNode) popup.parentNode.removeChild(popup);
-    };
-
-    confirmBtn.addEventListener('click', () => {
-      cleanup();
-      resolve(true);
-    });
-
-    cancelBtn.addEventListener('click', () => {
-      cleanup();
-      resolve(false);
-    });
-
-    actions.appendChild(confirmBtn);
-    actions.appendChild(cancelBtn);
-    popup.appendChild(text);
-    popup.appendChild(actions);
-    document.body.appendChild(popup);
-  });
-};
-
-/**
- * Show compact in-page autofill summary toast.
- * Non-blocking, no backdrop, auto-dismiss.
- * @param {{ filled: number, lowConfidence: number, unmatched: number }} stats
- */
-const showAutofillResultToast = (stats) => {
-  const existing = document.getElementById('fillr-autofill-summary-toast');
-  if (existing) existing.remove();
-
-  const toast = document.createElement('div');
-  toast.id = 'fillr-autofill-summary-toast';
-  toast.style.position = 'fixed';
-  toast.style.right = '16px';
-  toast.style.bottom = '16px';
-  toast.style.zIndex = '2147483647';
-  toast.style.background = '#ffffff';
-  toast.style.border = '1px solid #e2e8f0';
-  toast.style.borderRadius = '10px';
-  toast.style.padding = '10px 12px';
-  toast.style.minWidth = '200px';
-  toast.style.boxShadow = '0 8px 24px rgba(15, 23, 42, 0.12)';
-  toast.style.fontFamily = 'Inter, system-ui, -apple-system, sans-serif';
-  toast.style.color = '#1e293b';
-  toast.style.fontSize = '12px';
-  toast.style.lineHeight = '1.5';
-  toast.style.opacity = '0';
-  toast.style.transition = 'opacity 180ms ease';
-  toast.style.pointerEvents = 'none';
-
-  const toSafeNum = (value) => {
-    const num = Number(value);
-    return Number.isFinite(num) ? num : 0;
-  };
-
-  const filled = toSafeNum(stats.filled);
-  const lowConfidence = toSafeNum(stats.lowConfidence);
-  const unmatched = toSafeNum(stats.unmatched);
-
-  const row = (label, value) => {
-    const line = document.createElement('div');
-    line.textContent = `${label}: ${value}`;
-    return line;
-  };
-
-  toast.appendChild(row('Filled', filled));
-  toast.appendChild(row('Low Confidence', lowConfidence));
-  toast.appendChild(row('Unmatched', unmatched));
-
-  document.body.appendChild(toast);
-  requestAnimationFrame(() => {
-    toast.style.opacity = '1';
-  });
-
-  window.setTimeout(() => {
-    toast.style.opacity = '0';
-    window.setTimeout(() => {
-      if (toast.parentNode) toast.parentNode.removeChild(toast);
-    }, 220);
-  }, 2600);
-};
-
-const showConfigUnavailableToast = () => {
-  const existing = document.getElementById('fillr-config-unavailable-toast');
-  if (existing) existing.remove();
-
-  const toast = document.createElement('div');
-  toast.id = 'fillr-config-unavailable-toast';
-  toast.textContent = 'Configuration unavailable.';
-  toast.style.position = 'fixed';
-  toast.style.right = '16px';
-  toast.style.bottom = '16px';
-  toast.style.zIndex = '2147483647';
-  toast.style.background = '#ffffff';
-  toast.style.border = '1px solid #e2e8f0';
-  toast.style.borderRadius = '10px';
-  toast.style.padding = '10px 12px';
-  toast.style.minWidth = '190px';
-  toast.style.boxShadow = '0 8px 24px rgba(15, 23, 42, 0.12)';
-  toast.style.fontFamily = 'Inter, system-ui, -apple-system, sans-serif';
-  toast.style.color = '#1e293b';
-  toast.style.fontSize = '12px';
-  toast.style.lineHeight = '1.4';
-  toast.style.opacity = '0';
-  toast.style.transition = 'opacity 180ms ease';
-  toast.style.pointerEvents = 'none';
-
-  document.body.appendChild(toast);
-  requestAnimationFrame(() => {
-    toast.style.opacity = '1';
-  });
-
-  window.setTimeout(() => {
-    toast.style.opacity = '0';
-    window.setTimeout(() => {
-      if (toast.parentNode) toast.parentNode.removeChild(toast);
-    }, 220);
-  }, 2200);
-};
+// ── Page-level UI removed ─────────────────────────────────────
+// All confirmation/result UI now lives exclusively in the extension popup.
+// No floating divs, banners, or modals are injected into the page.
 
 /**
  * Highlight an element on the page with a visual flash effect
@@ -2546,7 +2783,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       try {
         const configReady = await loadRemoteFieldMappings();
         if (!configReady) {
-          showConfigUnavailableToast();
           sendResponse({
             status: 'config_unavailable',
             message: 'Configuration unavailable.',
@@ -2554,56 +2790,23 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           return;
         }
 
-        const preview = await autofillPage(
-          request.profile,
-          request.domain,
-          request.siteMappings,
-          { dryRun: true },
-        );
-
-        const fillCount = preview.candidateAutoFillCount || 0;
-        if (fillCount <= 0) {
-          sendResponse({
-            status: "completed",
-            autoFilledCount: 0,
-            pendingConfirmations: preview.pendingConfirmations || [],
-            filledFields: [],
-            skippedFields: preview.skippedFields || [],
-            learnedFills: [],
-          });
-          return;
-        }
-
-        const confirmed = await showAutofillConfirmationPopup(fillCount);
-        if (!confirmed) {
-          sendResponse({
-            status: "cancelled",
-            autoFilledCount: 0,
-            pendingConfirmations: [],
-            filledFields: [],
-            skippedFields: preview.skippedFields || [],
-            learnedFills: [],
-          });
-          return;
-        }
-
+        // Run autofill directly — high confidence fills silently,
+        // medium confidence is routed to popup only. No page-level UI.
         const result = await autofillPage(
           request.profile,
           request.domain,
           request.siteMappings,
         );
 
-        const lowConfidenceCount =
-          (result.pendingConfirmations?.length || 0) +
-          (result.skippedFields || []).filter((f) => f.reason === 'low confidence').length;
-        const unmatchedCount =
-          (result.skippedFields || []).filter((f) => f.reason === 'no match').length;
+        // Proactively notify popup of medium-confidence fields
+        if (result.pendingConfirmations && result.pendingConfirmations.length > 0) {
+          chrome.runtime.sendMessage({
+            action: 'MEDIUM_CONFIDENCE_RESULTS',
+            fields: result.pendingConfirmations
+          });
+        }
 
-        showAutofillResultToast({
-          filled: result.autoFilledCount || 0,
-          lowConfidence: lowConfidenceCount,
-          unmatched: unmatchedCount,
-        });
+        log(`Autofill complete: ${result.autoFilledCount} filled, ${result.pendingConfirmations?.length || 0} pending review`);
 
         sendResponse(result);
       } catch (err) {
@@ -2613,78 +2816,36 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }, delay);
   }
 
-  if (request.action === "CONFIRM_AUTOFILL") {
-    // Async handler for confirmations (Google dropdown confirmations need await)
+  // Apply a single medium-confidence field from popup
+  if (request.action === "APPLY_MEDIUM_FILL") {
     (async () => {
-      let confirmedCount = 0;
-      const confirmedFields = [];
-
-      for (const confirmation of request.confirmations) {
-        const { fieldId, selectedKey, profile } = confirmation;
-
-        // Get element from registry (no DOM query needed)
-        const element = elementRegistry.get(fieldId);
-
-        if (!element) {
-          console.warn("[Content] ⚠️ Element not found in registry:", fieldId);
-          continue;
-        }
-
-        // Safety check: ensure element is still in DOM (Google Forms can re-render)
-        if (!document.contains(element)) {
-          console.warn("[Content] ⚠️ Element detached from DOM:", fieldId);
-          continue;
-        }
-
-        if (selectedKey && profile) {
-          const config = FIELD_MAP[selectedKey];
-          if (config) {
-            const value = getValueByPath(profile, config.path);
-
-            if (value) {
-              let success = false;
-
-              // Route through Google Forms handlers based on fieldId prefix
-              if (fieldId.startsWith("gd_")) {
-                success = await fillGoogleDropdownHybrid(
-                  element,
-                  value,
-                  config,
-                );
-              } else if (fieldId.startsWith("gr_")) {
-                success = fillGoogleRadioHybrid(value, config, element);
-              } else {
-                success = fillField(element, value, config);
-              }
-
-              if (success) {
-                confirmedCount++;
-                confirmedFields.push({ fieldId, selectedKey, value });
-              }
-            } else {
-              console.warn(
-                `[Content] ⚠️ No value found for path: ${config.path}`,
-              );
-            }
-          } else {
-            console.warn(
-              `[Content] ⚠️ No config found for key: ${selectedKey}`,
-            );
-          }
-        } else {
-          console.warn("[Content] ⚠️ Missing data:", {
-            selectedKey,
-            profile: !!profile,
-            fieldId,
-          });
-        }
+      const element = elementRegistry.get(request.fieldId);
+      if (!element || !document.contains(element)) {
+        sendResponse({ success: false, error: 'Field not found or detached' });
+        return;
       }
 
-      sendResponse({
-        status: "confirmed",
-        confirmedCount,
-        confirmedFields,
-      });
+      const config = FIELD_MAP[request.matchKey];
+      if (!config) {
+        sendResponse({ success: false, error: 'No config for key: ' + request.matchKey });
+        return;
+      }
+
+      let success = false;
+      const value = request.value;
+
+      // Route through Google Forms handlers based on fieldId prefix
+      if (request.fieldId.startsWith('gd_')) {
+        success = await fillGoogleDropdownHybrid(element, value, config);
+      } else if (request.fieldId.startsWith('gr_')) {
+        success = fillGoogleRadioHybrid(value, config, element);
+      } else if (config.isDate) {
+        success = fillDateField(element, value);
+      } else {
+        success = fillField(element, value, config);
+      }
+
+      sendResponse({ success });
     })();
   }
 

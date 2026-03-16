@@ -109,9 +109,10 @@
         <!-- Password rules checklist -->
         <ul class="pw-rules" id="pwRules" style="display:none; margin-bottom:16px;">
           <li id="rule-len">At least 8 characters</li>
+          <li id="rule-lower">One lowercase letter</li>
           <li id="rule-upper">One uppercase letter</li>
           <li id="rule-num">One number</li>
-          <li id="rule-special">One special character</li>
+          <li id="rule-special">One special character (bonus)</li>
         </ul>
 
         <!-- Confirm Password -->
@@ -202,6 +203,7 @@
 
     const rules = {
       len:     { el: document.getElementById('rule-len'),     test: v => v.length >= 8 },
+      lower:   { el: document.getElementById('rule-lower'),   test: v => /[a-z]/.test(v) },
       upper:   { el: document.getElementById('rule-upper'),   test: v => /[A-Z]/.test(v) },
       num:     { el: document.getElementById('rule-num'),     test: v => /[0-9]/.test(v) },
       special: { el: document.getElementById('rule-special'), test: v => /[^A-Za-z0-9]/.test(v) },
@@ -282,9 +284,21 @@
         confirmInput.classList.add('is-error');
         return;
       }
-      const metCount = Object.values(rules).filter(r => r.test(password)).length;
-      if (metCount < 3) {
-        showError('Password is too weak. Please meet at least 3 of the 4 requirements.');
+      // Debug logging to confirm lowercase validation is evaluated (Fix #1)
+      console.debug('[Register] Password rule check:', {
+        hasLower:   rules.lower.test(password),
+        hasUpper:   rules.upper.test(password),
+        hasNum:     rules.num.test(password),
+        hasSpecial: rules.special.test(password),
+        length:     password.length,
+      });
+
+      // Server requires: 8+ chars, at least one lowercase, one uppercase, one number.
+      // All four of these must pass — 'special' is a bonus displayed for guidance only.
+      const serverRequiredRules = [rules.len, rules.lower, rules.upper, rules.num];
+      const allRequiredMet = serverRequiredRules.every(r => r.test(password));
+      if (!allRequiredMet) {
+        showError('Password must be at least 8 characters and include uppercase, lowercase, and a number.');
         pwInput.classList.add('is-error');
         return;
       }

@@ -6,6 +6,23 @@
  *  2. Google OAuth (verify ID token server-side via google-auth-library)
  *  3. Extension secret key auth (see keyController.js)
  *
+ * WHY PROFILE DATA IS NOT HASHED (Fix #10):
+ *  User profile fields (name, college, percentages, branch, etc.) MUST remain
+ *  readable in the database. The autofill engine reads these values and injects
+ *  them directly into form fields on third-party websites. Hashing them would
+ *  produce an irreversible digest that the extension cannot use for filling.
+ *
+ *  ONLY the following sensitive auth fields are hashed or encrypted:
+ *   - passwords        → bcrypt (salt rounds: 10), in User pre-save hook
+ *   - reset tokens     → crypto.randomBytes hex, stored hashed (SHA-256)
+ *   - extension keys   → bcrypt, in ExtensionKey pre-save hook
+ *
+ *  Database security is enforced through:
+ *   - MongoDB authentication (credentials from environment only)
+ *   - JWT-protected profile API routes (Bearer token required)
+ *   - Role-based admin guard (requireAdmin middleware)
+ *   - Field-level projection: _id, __v, password, resetToken never in API responses
+ *
  * Protects against:
  *  - Credential stuffing:    Rate limiting applied at route level
  *  - Brute force login:      Rate limiting + generic error messages (no oracle)

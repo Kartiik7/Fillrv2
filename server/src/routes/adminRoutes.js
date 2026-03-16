@@ -124,6 +124,14 @@ const fieldMappingSchema = Joi.object({
   secondary: Joi.array().items(kwItem).max(20).default([]),
   generic:   Joi.array().items(kwItem).max(10).default([]),
   negative:  Joi.array().items(kwItem).max(20).default([]),
+  // Dropdown options: { CanonicalLabel: [alias1, alias2, ...] }
+  // Only meaningful when fieldType = 'select'. Keys/aliases share the keyword safety pattern.
+  options: Joi.object()
+    .pattern(
+      Joi.string().trim().max(100).pattern(/^[^${}\\]+$/),
+      Joi.array().items(Joi.string().trim().max(100).pattern(/^[^${}\\]+$/)).max(20)
+    )
+    .optional(),
 });
 
 const deleteParamSchema = Joi.object({
@@ -233,6 +241,13 @@ const formatVersionString = (rawVersion) => {
   return `v${num}.0.0`;
 };
 
+const normalizeOptions = (options) => {
+  if (!options) return undefined;
+  // Handles both plain object (from lean()) and Map-like structures.
+  const entries = options instanceof Map ? Array.from(options.entries()) : Object.entries(options);
+  return Object.fromEntries(entries);
+};
+
 // ── GET /api/admin/field-mappings ─────────────────────────────
 // Returns full array with updatedAt — for the admin editor UI.
 // Unlike the public config route (GET /api/config/field-mappings), this
@@ -242,7 +257,7 @@ const formatVersionString = (rawVersion) => {
 router.get('/field-mappings', async (_req, res) => {
   try {
     const raw = await FieldMapping.find({})
-      .select('-_id key path fieldType primary secondary generic negative updatedAt')
+      .select('-_id key path fieldType primary secondary generic negative options updatedAt')
       .sort({ updatedAt: -1 })
       .lean();
 
@@ -254,6 +269,7 @@ router.get('/field-mappings', async (_req, res) => {
       secondary: m.secondary || [],
       generic:   m.generic   || [],
       negative:  m.negative  || [],
+      options:   normalizeOptions(m.options),
       updatedAt: m.updatedAt,
     }));
 
@@ -333,15 +349,15 @@ router.post('/field-mappings', async (req, res) => {
         secondary: value.secondary,
         generic:   value.generic,
         negative:  value.negative,
+        // Persist options only when provided; undefined leaves existing value unchanged
+        ...(value.options !== undefined ? { options: value.options } : {}),
         updatedAt: new Date(),
       },
       { upsert: true, new: true, runValidators: true }
     );
 
-    // Bump config version only for newly created mappings, not edits.
-    if (!existing) {
-      await ConfigVersion.bump();
-    }
+    // Bump config version for both creates and edits so extension cache refreshes immediately.
+    await ConfigVersion.bump();
 
     // Audit log (fire-and-forget)
     logAdminAction({
@@ -351,10 +367,12 @@ router.post('/field-mappings', async (req, res) => {
       metadata: {
         fieldId:        value.key,
         path:           value.path,
+        isCreate:       !existing,
         primaryCount:   value.primary.length,
         secondaryCount: value.secondary.length,
         genericCount:   value.generic.length,
         negativeCount:  value.negative.length,
+        optionsCount:   value.options ? Object.keys(value.options).length : 0,
       },
     });
 
@@ -364,10 +382,12 @@ router.post('/field-mappings', async (req, res) => {
       mapping: {
         key:       mapping.key,
         path:      mapping.path,
+        fieldType: mapping.fieldType || 'text',
         primary:   mapping.primary,
         secondary: mapping.secondary,
         generic:   mapping.generic,
         negative:  mapping.negative,
+        options:   normalizeOptions(mapping.options),
       },
     });
   } catch (err) {

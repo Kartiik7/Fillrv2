@@ -39,6 +39,12 @@ const configLimiter = rateLimit({
 
 router.use(configLimiter);
 
+const normalizeOptions = (options) => {
+  if (!options) return undefined;
+  const entries = options instanceof Map ? Array.from(options.entries()) : Object.entries(options);
+  return Object.fromEntries(entries);
+};
+
 /**
  * GET /api/config/full
  * Returns the current config version AND all field mappings in a single response.
@@ -60,7 +66,7 @@ router.get('/full', async (_req, res) => {
     const [config, rawMappings] = await Promise.all([
       ConfigVersion.current(),
       FieldMapping.find({})
-        .select('-_id key path fieldType primary secondary generic negative')
+        .select('-_id key path fieldType primary secondary generic negative options')
         .lean(),
     ]);
 
@@ -73,6 +79,7 @@ router.get('/full', async (_req, res) => {
         secondary: m.secondary || [],
         generic:   m.generic   || [],
         negative:  m.negative  || [],
+        ...(m.options ? { options: normalizeOptions(m.options) } : {}),
       };
     }
 
@@ -96,10 +103,10 @@ router.get('/full', async (_req, res) => {
 router.get('/field-mappings', async (_req, res) => {
   try {
     const mappings = await FieldMapping.find({})
-      .select('-_id key path fieldType primary secondary generic negative')
+      .select('-_id key path fieldType primary secondary generic negative options')
       .lean();
 
-    // Transform array into { key: { path, fieldType, primary, secondary, generic, negative } } object
+    // Transform array into { key: { path, fieldType, primary, secondary, generic, negative, options } } object
     const result = {};
     for (const m of mappings) {
       result[m.key] = {
@@ -109,6 +116,7 @@ router.get('/field-mappings', async (_req, res) => {
         secondary: m.secondary || [],
         generic:   m.generic   || [],
         negative:  m.negative  || [],
+        ...(m.options ? { options: normalizeOptions(m.options) } : {}),
       };
     }
 

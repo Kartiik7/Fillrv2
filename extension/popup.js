@@ -14,7 +14,6 @@ const tokenInput = document.getElementById('tokenInput');
 const saveTokenBtn = document.getElementById('saveTokenBtn');
 const confirmationsSection = document.getElementById('confirmationsSection');
 const confirmationsContent = document.getElementById('confirmationsContent');
-const applyConfirmationsBtn = document.getElementById('applyConfirmationsBtn');
 
 // ── Security: no direct API calls from popup ──────────────────
 // All API communication goes through background.js to prevent
@@ -359,11 +358,11 @@ const handleSaveToken = async () => {
 };
 
 /**
- * Display pending confirmations in UI
- * @param {Array} confirmations - Array of pending confirmation objects
- * @param {Object} profile - User profile for reference
+ * Display medium-confidence fields in popup UI.
+ * Shows: Label | Suggested Value | Apply Button per field.
+ * @param {Array} confirmations - Array of medium-confidence field objects
  */
-const displayConfirmations = (confirmations, profile) => {
+const displayConfirmations = (confirmations) => {
   if (!confirmations || confirmations.length === 0) {
     confirmationsSection.style.display = 'none';
     updatePendingBanner(0);
@@ -372,24 +371,13 @@ const displayConfirmations = (confirmations, profile) => {
   
   // Store globally for later use
   pendingConfirmationsData = confirmations;
-  currentProfile = profile;
-  
-  // Get all available field keys from FIELD_MAP (we'll need to import this or hardcode)
-  const fieldKeys = [
-    'name', 'email', 'phone', 'gender', 'dob', 'age', 'permanent_address',
-    'tenth_percentage', 'twelfth_percentage', 'diploma_percentage', 'graduation_percentage', 'pg_percentage', 'cgpa',
-    'active_backlog', 'backlog_count', 'gap_months',
-    'uid', 'university_roll_number', 
-    'college_name', 'batch', 'program', 'stream',
-    'position_applying',
-    'github', 'linkedin', 'portfolio'
-  ];
   
   confirmationsContent.innerHTML = '';
   
-  confirmations.forEach((conf, index) => {
+  confirmations.forEach((conf) => {
     const confItem = document.createElement('div');
     confItem.className = 'confirmation-item';
+    confItem.setAttribute('data-field-id', conf.fieldId);
     confItem.innerHTML = `
       <div class="confirmation-field">
         <div class="confirmation-label-row">
@@ -397,103 +385,84 @@ const displayConfirmations = (confirmations, profile) => {
             <strong>${esc(conf.labelText)}</strong>
             <span class="confidence-badge">${(conf.confidence * 100).toFixed(0)}%</span>
           </label>
-          <button class="btn-show-field" data-field-id="${conf.fieldId}" title="Scroll to this field">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            Show
+        </div>
+        <div class="confirmation-value-row">
+          <span class="suggested-value">${esc(conf.suggestedValue || '\u2014')}</span>
+          <button class="btn-apply-field btn btn-blue btn-xs"
+                  data-field-id="${conf.fieldId}"
+                  data-match-key="${esc(conf.suggestedKey)}">
+            Apply
           </button>
         </div>
-        <select class="confirmation-select" data-field-id="${conf.fieldId}">
-          <option value="">-- Skip this field --</option>
-          ${fieldKeys.map(key => `
-            <option value="${key}" ${key === conf.suggestedKey ? 'selected' : ''}>
-              ${key} ${key === conf.suggestedKey ? '(suggested)' : ''}
-            </option>
-          `).join('')}
-        </select>
       </div>
     `;
     confirmationsContent.appendChild(confItem);
   });
   
-  // Add event listeners for show buttons
-  confirmationsContent.querySelectorAll('.btn-show-field').forEach(btn => {
-    btn.addEventListener('click', () => highlightFieldOnPage(btn.dataset.fieldId));
+  // Add event listeners for individual Apply buttons
+  confirmationsContent.querySelectorAll('.btn-apply-field').forEach(btn => {
+    btn.addEventListener('click', () => applyMediumField(btn));
   });
   
   confirmationsSection.style.display = 'block';
-  
-  // Show banner to notify user about pending confirmations
   updatePendingBanner(confirmations.length);
 };
 
 /**
- * Handle Apply Confirmations Button Click
+ * Apply a single medium-confidence field by sending message to content script
+ * @param {HTMLButtonElement} btn - The Apply button that was clicked
  */
-const handleApplyConfirmations = async () => {
+const applyMediumField = async (btn) => {
+  const fieldId = btn.dataset.fieldId;
+  const matchKey = btn.dataset.matchKey;
+  const conf = pendingConfirmationsData.find(c => c.fieldId === fieldId);
+  if (!conf) return;
   
   try {
-    applyConfirmationsBtn.disabled = true;
-    applyConfirmationsBtn.textContent = 'Applying...';
+    btn.disabled = true;
+    btn.textContent = 'Applying\u2026';
     
-    // Collect user selections
-    const confirmations = [];
-    const selects = confirmationsContent.querySelectorAll('.confirmation-select');
-    
-    // Get current domain for saving learned mappings
-    const domain = await getCurrentDomain();
-    
-    selects.forEach(select => {
-      const fieldId = select.getAttribute('data-field-id');
-      const selectedKey = select.value;
-      
-      if (selectedKey) {
-        // Find the original confirmation to get labelText
-        const conf = pendingConfirmationsData.find(c => c.fieldId === fieldId);
-        
-        if (conf && domain) {
-          const normalizedLabel = normalizeLabel(conf.labelText);
-          // Save learned mapping for this domain
-          saveSiteMapping(domain, normalizedLabel, selectedKey);
-        }
-        
-        confirmations.push({
-          fieldId,
-          selectedKey,
-          profile: currentProfile
-        });
-      }
-    });
-    
-    if (confirmations.length === 0) {
-      showToast('No fields selected', 'warn');
-      return;
-    }
-    
-    // Get active tab
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    
     const response = await chrome.tabs.sendMessage(tab.id, {
-      action: 'CONFIRM_AUTOFILL',
-      confirmations: confirmations
+      action: 'APPLY_MEDIUM_FILL',
+      fieldId: fieldId,
+      matchKey: matchKey,
+      value: conf.suggestedValue
     });
     
-    if (response && response.status === 'confirmed') {
-      showToast(`✅ Confirmed ${response.confirmedCount} field(s)!`, 'success');
-      confirmationsSection.style.display = 'none';
-      updatePendingBanner(0);
-      pendingConfirmationsData = [];
-      // Refresh learned mappings display
+    if (response && response.success) {
+      btn.textContent = '\u2713 Applied';
+      btn.disabled = true;
+      const item = btn.closest('.confirmation-item');
+      if (item) item.style.opacity = '0.5';
+      
+      // Save learned mapping for this domain
+      const domain = await getCurrentDomain();
+      if (domain) {
+        const label = normalizeLabel(conf.labelText);
+        saveSiteMapping(domain, label, matchKey);
+      }
+      
+      // Remove from pending list
+      pendingConfirmationsData = pendingConfirmationsData.filter(c => c.fieldId !== fieldId);
+      updatePendingBanner(pendingConfirmationsData.length);
+      
+      showToast(`Applied: ${conf.labelText}`, 'success', 2000);
       displayLearnedMappings();
+    } else {
+      btn.textContent = 'Failed';
+      showToast('Failed to apply field', 'error');
+      setTimeout(() => { btn.textContent = 'Apply'; btn.disabled = false; }, 2000);
     }
-    
-  } catch (error) {
-    console.error('[Popup] Error applying confirmations:', error);
-    showToast(error.message, 'error');
-  } finally {
-    applyConfirmationsBtn.disabled = false;
-    applyConfirmationsBtn.textContent = 'Apply Confirmed Autofill';
+  } catch (err) {
+    console.error('[Popup] Error applying medium field:', err);
+    btn.textContent = 'Error';
+    showToast('Error applying field', 'error');
+    setTimeout(() => { btn.textContent = 'Apply'; btn.disabled = false; }, 2000);
   }
 };
+
+
 
 /**
  * Autofill Page Button Handler
@@ -545,20 +514,12 @@ const handleAutofillPage = async () => {
       return;
     }
 
-    if (response && response.status === 'cancelled') {
-      showToast('Autofill cancelled', 'warn', 1800);
-      confirmationsSection.style.display = 'none';
-      updatePendingBanner(0);
-      pendingConfirmationsData = [];
-      return;
-    }
-
     if (response && response.status === 'completed') {
-      const { autoFilledCount, pendingConfirmations, filledFields, skippedFields } = response;
+      const { autoFilledCount, pendingConfirmations } = response;
       
-      // Display pending confirmations if any
+      // Display medium-confidence fields for review in popup
       if (pendingConfirmations && pendingConfirmations.length > 0) {
-        displayConfirmations(pendingConfirmations, profileData);
+        displayConfirmations(pendingConfirmations);
       }
       
       // Show success toast
@@ -567,9 +528,11 @@ const handleAutofillPage = async () => {
       } else {
         showToast(`✅ Autofilled ${autoFilledCount} field(s)!`, 'success');
       }
-    } else {
-      console.error('[Popup] Invalid response from content script');
+    } else if (response && response.status !== 'error') {
+      console.error('[Popup] Unexpected response from content script:', response);
       showToast('Failed to autofill page', 'error');
+    } else {
+      showToast(response?.error || 'Autofill error', 'error');
     }
     
   } catch (error) {
@@ -578,7 +541,7 @@ const handleAutofillPage = async () => {
     if (error.message.includes('Session expired')) {
       showToast('Session expired. Reconnect please.', 'error');
     } else {
-      showToast('Server unreachable', 'error');
+      showToast('Please refresh the page and try again.', 'error', 4000);
     }
   } finally {
     // Re-enable button
@@ -709,11 +672,18 @@ const init = () => {
   scanBtn.addEventListener('click', handleScanPage);
   autofillBtn.addEventListener('click', handleAutofillPage);
   saveTokenBtn.addEventListener('click', handleSaveToken);
-  applyConfirmationsBtn.addEventListener('click', handleApplyConfirmations);
   document.getElementById('clearMemoryBtn').addEventListener('click', handleClearMemory);
   document.getElementById('logoutBtn').addEventListener('click', handleLogout);
   document.getElementById('showAllFieldsBtn').addEventListener('click', highlightAllPendingFields);
   document.getElementById('pendingBanner').addEventListener('click', scrollToConfirmations);
+  
+  // Listen for medium-confidence results sent proactively from content script
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === 'MEDIUM_CONFIDENCE_RESULTS') {
+      displayConfirmations(message.fields);
+      sendResponse({ received: true });
+    }
+  });
 };
 
 // Initialize when DOM is ready

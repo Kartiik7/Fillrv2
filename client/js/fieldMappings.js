@@ -47,6 +47,8 @@ if (!token) window.location.replace('/login');
 /* ── State ─────────────────────────────────────────────────── */
 let _mappings      = [];    // in-memory source of truth
 let _kw            = { primary: [], secondary: [], generic: [], negative: [] };  // tags for modal currently open
+let _options       = {};    // { label: [alias, ...] } for select-type mapping options
+let _editingOptionOriginal = null;
 let _editingKey    = null;  // null = create; string = edit key
 let _pendingDelKey = null;  // key awaiting confirmed delete
 let _isFetching    = false;
@@ -98,7 +100,13 @@ const dom = {
   mappingForm:    $('mappingForm'),
   inputKey:       $('inputKey'),
   inputPath:      $('inputPath'),
-    inputFieldType: $('inputFieldType'),
+  inputFieldType: $('inputFieldType'),
+  optionsSection: $('optionsSection'),
+  optionsList:    $('optionsList'),
+  optionsError:   $('optionsError'),
+  addOptionBtn:   $('addOptionBtn'),
+  newOptionLabel: $('newOptionLabel'),
+  newOptionAliases: $('newOptionAliases'),
   saveBtn:        $('saveBtn'),
   saveBtnLabel:   $('saveBtnLabel'),
   keyCount:       $('keyCount'),
@@ -201,6 +209,7 @@ async function fetchMappings({ highlightKey } = {}) {
       secondary: Array.isArray(m.secondary) ? m.secondary : [],
       generic:   Array.isArray(m.generic)   ? m.generic   : [],
       negative:  Array.isArray(m.negative)  ? m.negative  : [],
+      options:   (m.options && typeof m.options === 'object') ? m.options : {},
       updatedAt: m.updatedAt,
     }));
     renderTable(highlightKey);
@@ -409,6 +418,13 @@ function openModal(mapping = null) {
   dom.inputFieldType.value = isEdit ? (mapping.fieldType || 'text') : 'text';
   dom.keyCount.textContent = `${dom.inputKey.value.length} / 40`;
 
+  // Populate dropdown options state after fieldType is assigned
+  _options = isEdit && mapping.options ? { ...mapping.options } : {};
+  _editingOptionOriginal = null;
+  resetOptionInputState();
+  renderOptionsList();
+  toggleOptionsSection(dom.inputFieldType.value);
+
   CATEGORIES.forEach(renderTags);
   clearAllErrors();
 
@@ -419,13 +435,16 @@ function openModal(mapping = null) {
 function closeModal() {
   dom.mappingModal.classList.remove('show');
   _editingKey = null;
+  _options    = {};
+  _editingOptionOriginal = null;
   CATEGORIES.forEach(cat => {
     _kw[cat] = [];
     kwDom[cat].input.value = '';
-    renderTags(cat); // clear chips so :empty CSS hides the wrap
+    renderTags(cat);
   });
   dom.mappingForm.reset();
   clearAllErrors();
+  toggleOptionsSection('text');
 }
 
 function openConfirmModal(key) {
@@ -526,6 +545,10 @@ function validateMapping() {
     if (_kw[cat].length > KW_MAX[cat]) errors[cat] = `Maximum ${KW_MAX[cat]} ${cat} keywords allowed.`;
   });
 
+  if (dom.inputFieldType.value === 'select' && Object.keys(_options).length === 0) {
+    errors.options = 'At least one dropdown option is required for select fields.';
+  }
+
   return { valid: Object.keys(errors).length === 0, errors };
 }
 
@@ -545,6 +568,7 @@ async function saveMapping() {
     if (errors.key)     { showFieldError('keyError',     errors.key);     dom.inputKey.focus();  return; }
     if (errors.path)    { showFieldError('pathError',    errors.path);    dom.inputPath.focus(); return; }
     if (errors.primary) { showFieldError('primaryError', errors.primary);                        return; }
+    if (errors.options) { showFieldError('optionsError', errors.options);                        return; }
     // Show any optional category error
     for (const cat of CATEGORIES.slice(1)) {
       if (errors[cat]) { showFieldError(`${cat}Error`, errors[cat]); return; }
@@ -560,6 +584,8 @@ async function saveMapping() {
     secondary: _kw.secondary,
     generic:   _kw.generic,
     negative:  _kw.negative,
+    // Include options only when fieldType is select (prevents unnecessary DB fields)
+    ...(dom.inputFieldType.value === 'select' ? { options: _options } : {}),
   };
 
   setSaving(true);
@@ -695,8 +721,115 @@ function clearFieldError(id) {
 }
 
 function clearAllErrors() {
-  ['keyError', 'pathError', 'primaryError', 'secondaryError', 'genericError', 'negativeError']
+  ['keyError', 'pathError', 'primaryError', 'secondaryError', 'genericError', 'negativeError', 'optionsError']
     .forEach(id => clearFieldError(id));
+}
+
+/* ════════════════════════════════════════════════════════════ *
+ *  DROPDOWN OPTIONS MANAGEMENT (Fix #5)                        *
+ * ════════════════════════════════════════════════════════════ */
+
+/** Show or hide the options section based on selected fieldType. */
+function toggleOptionsSection(fieldType) {
+  if (dom.optionsSection) dom.optionsSection.style.display = (fieldType === 'select') ? '' : 'none';
+  if (fieldType !== 'select') {
+    clearFieldError('optionsError');
+    _editingOptionOriginal = null;
+    resetOptionInputState();
+  }
+}
+
+/** Re-render the options list rows from _options state. */
+function renderOptionsList() {
+  const listEl = dom.optionsList;
+  if (!listEl) return;
+  const entries = Object.entries(_options);
+  if (entries.length === 0) {
+    listEl.innerHTML = '<p style="font-size:0.8rem;color:var(--muted);margin:0;">No options yet. Add the first one below.</p>';
+    return;
+  }
+  listEl.innerHTML = entries.map(([label, aliases], i) => `
+    <div style="display:flex;align-items:center;gap:8px;background:var(--surface-2,#f8fafc);border:1px solid var(--border);border-radius:6px;padding:8px 10px;">
+      <strong style="flex:0 0 auto;min-width:80px;font-size:0.84rem;">${escHtml(label)}</strong>
+      <span style="flex:1;font-size:0.78rem;color:var(--muted);">${aliases.map(escHtml).join(', ') || '—'}</span>
+      <button type="button" class="adm-tbl-btn adm-tbl-btn-edit" data-opt-edit="${i}"
+        aria-label="Edit option ${escAttr(label)}">Edit</button>
+      <button type="button" class="adm-tbl-btn adm-tbl-btn-del" data-opt-remove="${i}"
+        aria-label="Remove option ${escAttr(label)}">Remove</button>
+    </div>
+  `).join('');
+
+  // Wire remove buttons
+  listEl.querySelectorAll('[data-opt-remove]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.optRemove, 10);
+      const labels = Object.keys(_options);
+      if (!isNaN(idx) && labels[idx]) {
+        delete _options[labels[idx]];
+        if (_editingOptionOriginal === labels[idx]) {
+          _editingOptionOriginal = null;
+          resetOptionInputState();
+        }
+        renderOptionsList();
+      }
+    });
+  });
+
+  // Wire edit buttons
+  listEl.querySelectorAll('[data-opt-edit]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.optEdit, 10);
+      const labels = Object.keys(_options);
+      const original = !isNaN(idx) ? labels[idx] : null;
+      if (!original) return;
+      _editingOptionOriginal = original;
+      dom.newOptionLabel.value = original;
+      dom.newOptionAliases.value = (_options[original] || []).join(', ');
+      dom.addOptionBtn.textContent = 'Update Option';
+      clearFieldError('optionsError');
+      dom.newOptionLabel.focus();
+    });
+  });
+}
+
+/** Add a new option from the label/aliases inputs. */
+function addOptionFromInputs() {
+  const labelEl   = dom.newOptionLabel;
+  const aliasesEl = dom.newOptionAliases;
+  const errEl     = dom.optionsError;
+  if (!labelEl || !aliasesEl) return;
+
+  const label = labelEl.value.trim();
+  if (!label) {
+    if (errEl) { errEl.textContent = 'Option label is required.'; errEl.hidden = false; }
+    labelEl.focus();
+    return;
+  }
+  if (label.length > 100 || /[${}\\]/.test(label)) {
+    if (errEl) { errEl.textContent = 'Invalid option label.'; errEl.hidden = false; }
+    return;
+  }
+
+  const aliases = aliasesEl.value
+    .split(',')
+    .map(a => a.trim().toLowerCase())
+    .filter(a => a.length > 0 && a.length <= 100 && !/[${}\\]/.test(a));
+
+  // Rename support: if label changed while editing, remove old key first.
+  if (_editingOptionOriginal && _editingOptionOriginal !== label) {
+    delete _options[_editingOptionOriginal];
+  }
+  _options[label] = aliases;
+  _editingOptionOriginal = null;
+  if (errEl) { errEl.textContent = ''; errEl.hidden = true; }
+  labelEl.value = '';
+  aliasesEl.value = '';
+  resetOptionInputState();
+  renderOptionsList();
+}
+
+function resetOptionInputState() {
+  if (dom.addOptionBtn) dom.addOptionBtn.textContent = '+ Add Option';
 }
 
 /* ════════════════════════════════════════════════════════════ *
@@ -794,6 +927,11 @@ dom.inputKey.addEventListener('input', () => {
 });
 dom.inputPath.addEventListener('input', () => clearFieldError('pathError'));
 
+// Show/hide options section when field type changes
+dom.inputFieldType.addEventListener('change', () => {
+  toggleOptionsSection(dom.inputFieldType.value);
+});
+
 // Keyword inputs — wired for all 4 categories
 CATEGORIES.forEach(cat => {
   const { input, tags } = kwDom[cat];
@@ -825,6 +963,19 @@ dom.confirmDeleteBtn.addEventListener('click', confirmDelete);
 // Overlay click closes modals
 dom.mappingModal.addEventListener('click',  (e) => { if (e.target === dom.mappingModal)  closeModal(); });
 dom.confirmModal.addEventListener('click',  (e) => { if (e.target === dom.confirmModal)  closeConfirmModal(); });
+
+// Add Option button and Enter key in option inputs (Fix #5)
+if (dom.addOptionBtn) dom.addOptionBtn.addEventListener('click', addOptionFromInputs);
+if (dom.newOptionLabel) {
+  dom.newOptionLabel.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); addOptionFromInputs(); }
+  });
+}
+if (dom.newOptionAliases) {
+  dom.newOptionAliases.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); addOptionFromInputs(); }
+  });
+}
 
 // Escape key
 document.addEventListener('keydown', (e) => {

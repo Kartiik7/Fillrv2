@@ -136,22 +136,24 @@ const calculateOptionScore = (target, query) => {
  *   generic match      → +1
  *   negative match     → −5
  *
- * Hard resets:
- *   requiredAnchors    → ALL must be present; else score = 0
- *   exclusionAnchors   → NONE may be present; else score = 0
+ * Scoring bonuses (NOT hard blocks):
+ *   requiredAnchors    → +3 bonus if ANY present
+ *   numericAnchors     → +4 bonus if ANY present
+ *   exclusionAnchors   → −8 penalty if ANY present
  *
  * @param {string[]} tokens - Tokenized field text (from tokenize())
  * @param {Object}   config - Pre-processed field config (use preprocessConfig/preprocessMappings)
  * @param {string[][]} [config.primary]          - Pre-tokenised strong signal keywords          (+5 each)
- * @param {string[][]} [config.secondary]        - Pre-tokenised moderate signal keywords         (+3 each)
+ * @param {string[][}} [config.secondary]        - Pre-tokenised moderate signal keywords         (+3 each)
  * @param {string[][]} [config.generic]          - Pre-tokenised weak signal keywords             (+1 each)
  * @param {string[][]} [config.negative]         - Pre-tokenised penalizing keywords              (−5 each)
- * @param {string[][]} [config.requiredAnchors]  - All must match; missing → 0
- * @param {string[][]} [config.exclusionAnchors] - Any match disqualifies field → 0
+ * @param {string[][]} [config.requiredAnchors]  - Bonus when present (+3)
+ * @param {string[][]} [config.numericAnchors]   - Bonus when present (+4)
+ * @param {string[][]} [config.exclusionAnchors] - Penalty when present (−8)
  * @param {string}   [key='']                  - Identifier for the matched field
  * @returns {{ key: string, score: number, confidence: number }}
  *   score      – raw integer point total (floored at 0)
- *   confidence – score / maxPossibleScore ∈ [0, 1]
+ *   confidence – score normalised to [0, 1] via fixed baseline
  */
 const calculateAdvancedScore = (tokens, config, key = '') => {
   const {
@@ -161,26 +163,55 @@ const calculateAdvancedScore = (tokens, config, key = '') => {
     negative         = [],
     requiredAnchors  = [],
     exclusionAnchors = [],
+    numericAnchors   = [],
   } = config;
 
-  // Hard reset: all required anchors must be present.
-  // Each entry is a pre-tokenised string[] — no re-tokenisation needed.
+  // Fixed baseline for confidence normalisation.
+  // A single primary match (5) → 5/6 = 0.83 → HIGH_CONFIDENCE.
+  // A single secondary (3) → 3/6 = 0.50 → MEDIUM_CONFIDENCE.
+  // A single generic  (1) → 1/6 = 0.17 → below threshold (skip).
+  // This prevents configs with many keywords from deflating confidence.
+  const SCORE_BASELINE = 6;
+
+  // requiredAnchors: BONUS, not a hard block.
+  // If any required anchor is present → bonus points.
+  // If none present → no bonus, but score is NOT zeroed out.
+  let anchorBonus = 0;
   if (requiredAnchors.length > 0) {
-    const allPresent = requiredAnchors.every(kwTokens =>
+    const anyPresent = requiredAnchors.some(kwTokens =>
       kwTokens.every(t => tokens.includes(t))
     );
-    if (!allPresent) return { key, score: 0, confidence: 0 };
+    if (anyPresent) {
+      anchorBonus = 3;
+    }
   }
 
-  // Hard reset: no exclusion anchor may be present.
+  // numericAnchors: BONUS, not a hard block.
+  // Distinguishes e.g. "10th marks" from "12th marks" via comparative scoring.
+  let numericBonus = 0;
+  if (numericAnchors.length > 0) {
+    const anyPresent = numericAnchors.some(kwTokens =>
+      kwTokens.every(t => tokens.includes(t))
+    );
+    if (anyPresent) {
+      numericBonus = 4;
+    }
+  }
+
+  // exclusionAnchors: PENALTY, not a hard block.
+  // Heavy penalty makes it near-impossible for excluded configs to win,
+  // but doesn't zero out the score unconditionally.
+  let exclusionPenalty = 0;
   if (exclusionAnchors.length > 0) {
     const anyPresent = exclusionAnchors.some(kwTokens =>
       kwTokens.every(t => tokens.includes(t))
     );
-    if (anyPresent) return { key, score: 0, confidence: 0 };
+    if (anyPresent) {
+      exclusionPenalty = -8;
+    }
   }
 
-  let score = 0;
+  let score = anchorBonus + numericBonus + exclusionPenalty;
 
   // Keyword arrays are pre-tokenised (string[][]) — iterate token arrays directly.
   primary.forEach(kwTokens => {
@@ -198,8 +229,9 @@ const calculateAdvancedScore = (tokens, config, key = '') => {
 
   score = Math.max(0, score);
 
-  const maxPossibleScore = primary.length * 5 + secondary.length * 3 + generic.length;
-  const confidence = maxPossibleScore > 0 ? score / maxPossibleScore : 0;
+  // Confidence normalised against a fixed baseline for consistent thresholds
+  // across configs with varying keyword counts.
+  const confidence = score > 0 ? Math.min(1.0, score / SCORE_BASELINE) : 0;
 
   return { key, score, confidence };
 };
@@ -220,115 +252,17 @@ const hasNumericAnchor = (tokens, numericAnchors) => {
   );
 };
 
-// ── Type System ───────────────────────────────────────────────
-/**
- * Canonical schema types for field configs.
- *
- * "text"    — free-text input (name, email, phone, links, …)
- * "number"  — strictly numeric value (age, CGPA, backlog count, …)
- * "date"    — date value (DOB, …); may fill text inputs when formatted
- * "select"  — dropdown or radio group (gender, program, stream, …)
- * "boolean" — yes/no select/radio/checkbox (active_backlog, …)
- *
- * A config may declare `type` explicitly.  When absent, resolveConfigType()
- * infers the type from the legacy isDate / isNumeric / options flags so
- * existing mapping entries need no changes.
- */
-const VALID_CONFIG_TYPES = ['text', 'number', 'date', 'select', 'boolean'];
-
-/**
- * Derive the effective schema type for a field config.
- * Priority: explicit `type` field → isDate → isNumeric → options → "text".
- *
- * @param {Object} config - Raw or processed field config
- * @returns {'text'|'number'|'date'|'select'|'boolean'} Schema type
- */
-const resolveConfigType = (config) => {
-  if (config.type && VALID_CONFIG_TYPES.includes(config.type)) return config.type;
-  if (config.isDate)    return 'date';
-  if (config.isNumeric) return 'number';
-  if (config.options)   return 'select';
-  return 'text';
-};
-
-/**
- * Map a DOM element's `type` attribute (or tag name) to a schema type.
- *
- * DOM values recognised:
- *   number                         → "number"
- *   date, datetime-local, month    → "date"
- *   select (tagName)               → "select"
- *   radio                          → "select"
- *   checkbox                       → "boolean"
- *   text, email, url, tel,         → "text"
- *   textarea, search, (others)
- *
- * @param {string} domType - element.type or element.tagName.toLowerCase()
- * @returns {'text'|'number'|'date'|'select'|'boolean'} Schema type
- */
-const resolveInputType = (domType) => {
-  switch ((domType || '').toLowerCase()) {
-    case 'number':
-      return 'number';
-    case 'date':
-    case 'datetime-local':
-    case 'month':
-    case 'week':
-      return 'date';
-    case 'select':
-      return 'select';
-    case 'radio':
-      return 'select';
-    case 'checkbox':
-      return 'boolean';
-    default:            // text, email, url, tel, textarea, search, …
-      return 'text';
-  }
-};
-
-/**
- * Determine whether a config's schema type is compatible with the actual
- * DOM input type.  Returns false when there is a hard mismatch — the caller
- * should treat the score as 0 and skip the config entirely.
- *
- * Compatibility matrix:
- *   config "text"    → input "text"  only
- *   config "number"  → input "number" only
- *   config "date"    → input "date"  or "text" (many sites use <input type=text> for DOB)
- *   config "select"  → input "select" only
- *   config "boolean" → input "select" or "boolean" (checkbox)
- *
- * @param {'text'|'number'|'date'|'select'|'boolean'} configType
- * @param {'text'|'number'|'date'|'select'|'boolean'} inputType
- * @returns {boolean}
- */
-const isTypeCompatible = (configType, inputType) => {
-  switch (configType) {
-    case 'text':    return inputType === 'text';
-    case 'number':  return inputType === 'number';
-    case 'date':    return inputType === 'date' || inputType === 'text';
-    case 'select':  return inputType === 'select';
-    case 'boolean': return inputType === 'select' || inputType === 'boolean';
-    default:        return true;   // unknown configType — allow through
-  }
-};
-
 // ── Mapping Preprocessors ─────────────────────────────────────
 /**
  * Pre-tokenise all keyword arrays in a single raw field config.
  * Each keyword string is converted to its token array once, so the
  * hot-path scoring loop never calls tokenize() per iteration.
  *
- * Also resolves and stores the schema `type` via resolveConfigType() so
- * every processed entry always carries an unambiguous type string —
- * no further flag inspection needed at match time.
- *
  * Returns a frozen object — keyword arrays must not be mutated after
  * preprocessing.
  *
  * @param {Object} config - Raw field config with string[] keyword arrays
- * @returns {Readonly<Object>} Config where keyword arrays are string[][] and
- *   `type` is the resolved schema type string
+ * @returns {Readonly<Object>} Config where keyword arrays are string[][]
  */
 const preprocessConfig = (config) => {
   const tok = (arr) => (Array.isArray(arr) ? arr : []).map(kw => tokenize(String(kw)));
@@ -340,8 +274,6 @@ const preprocessConfig = (config) => {
     requiredAnchors:  tok(config.requiredAnchors),
     numericAnchors:   tok(config.numericAnchors),
     exclusionAnchors: tok(config.exclusionAnchors),
-    // Resolve once — avoids repeated flag inspection in the hot matching loop.
-    type:             resolveConfigType(config),
   });
 };
 
@@ -353,8 +285,8 @@ const preprocessConfig = (config) => {
  * inside a per-field or per-iteration loop.
  *
  * Non-keyword fields (path, options, isDate, isNumeric, …) are
- * preserved unchanged via object spread; the resolved `type` from
- * preprocessConfig() overwrites any raw `type` string on the entry.
+ * preserved unchanged via object spread; preprocessConfig() overwrites
+ * keyword arrays with pre-tokenised form.
  *
  * @param {Object} rawMappings - Map of fieldKey → raw config
  * @returns {Readonly<Object>} Frozen map of fieldKey → processed config

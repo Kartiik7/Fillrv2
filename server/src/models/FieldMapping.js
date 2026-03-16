@@ -57,6 +57,16 @@ const fieldMappingSchema = new mongoose.Schema(
     generic:   strArray(false, 10),
     // Terms that disqualify this field — optional
     negative:  strArray(false, 20),
+    // Dropdown options for select-type fields.
+    // Stored as key → aliases: e.g. { "B.Tech": ["btech", "bachelor of technology"] }
+    // Profile data is stored in plaintext intentionally: the autofill engine
+    // must read the canonical value to fill forms. Hashing profile data would
+    // break autofill — only passwords and tokens are hashed (bcrypt, server-side).
+    options: {
+      type: Map,
+      of: [String],
+      default: undefined,
+    },
   },
   {
     timestamps: true,

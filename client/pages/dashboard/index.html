@@ -376,6 +376,36 @@
     links:     'links.',
   };
 
+  // ── PG programme detection ─────────────────────────────────
+  // Profile data cannot be hashed: autofill requires plaintext values.
+  // Only passwords / tokens are hashed (bcrypt, server-side).
+  const PG_PROGRAMS = [
+    'm.tech', 'mtech', 'master of technology',
+    'mba', 'master of business administration',
+    'mca', 'master of computer applications',
+    'm.sc', 'msc', 'master of science',
+    'm.e', 'master of engineering',
+  ];
+
+  // Degree → branch options used for dynamic filtering (Fix #9)
+  const DEGREE_BRANCH_MAP = {
+    'b.tech':                   ['CSE', 'IT', 'AIML', 'ECE', 'Mechanical', 'Civil', 'Chemical', 'EEE'],
+    'btech':                    ['CSE', 'IT', 'AIML', 'ECE', 'Mechanical', 'Civil', 'Chemical', 'EEE'],
+    'bachelor of technology':   ['CSE', 'IT', 'AIML', 'ECE', 'Mechanical', 'Civil', 'Chemical', 'EEE'],
+    'be':                       ['CSE', 'IT', 'ECE', 'Mechanical', 'Civil'],
+    'bachelor of engineering':  ['CSE', 'IT', 'ECE', 'Mechanical', 'Civil'],
+    'bca':                      ['Computer Applications'],
+    'b.sc':                     ['CS', 'IT', 'Physics', 'Mathematics', 'Electronics'],
+    'bsc':                      ['CS', 'IT', 'Physics', 'Mathematics', 'Electronics'],
+    'mba':                      ['Marketing', 'Finance', 'HR', 'Operations', 'Business Analytics'],
+    'mca':                      ['Computer Applications'],
+    'm.tech':                   ['CSE', 'IT', 'AIML', 'ECE', 'Data Science'],
+    'mtech':                    ['CSE', 'IT', 'AIML', 'ECE', 'Data Science'],
+    'master of technology':     ['CSE', 'IT', 'AIML', 'ECE', 'Data Science'],
+    'm.sc':                     ['CS', 'IT', 'Mathematics', 'Physics', 'Data Science'],
+    'msc':                      ['CS', 'IT', 'Mathematics', 'Physics', 'Data Science'],
+  };
+
   const LOCAL_SEEN_KEY = 'fillr:lastSeenMappingUpdate';
   let _fields = [];
   let _snapshot = '';
@@ -428,6 +458,7 @@
         group,
         label: toLabel(key),
         type: val.fieldType || inferType(key, path),
+        options: val.options || {},   // dropdown options for select type
         id: `fld-${key}`,
       });
     });
@@ -437,24 +468,49 @@
     });
   }
 
+  // Return min/max constraints for a numeric field based on its key/path
+  function getNumericConstraints(f) {
+    const combined = (f.key + ' ' + f.path).toLowerCase();
+    if (combined.includes('age'))                                     return { min: 0,   max: 120 };
+    if (combined.includes('percentage') || combined.includes('percent')) return { min: 0,   max: 100 };
+    if (combined.includes('cgpa')  || combined.includes('gpa'))       return { min: 0,   max: 10  };
+    if (combined.includes('gap'))                                     return { min: 0,   max: 12  };
+    return null;
+  }
+
   function createFieldHTML(f) {
     // Email field in personal section is immutable — show as disabled with note
     const isImmutableEmail = f.path === 'personal.email';
     const disabledAttr = isImmutableEmail ? ' disabled title="Email address cannot be changed"' : '';
     const immutableNote = isImmutableEmail ? '<small class="db-fl-note" style="color:var(--muted);font-size:.75rem;margin-top:2px;">Email address cannot be changed.</small>' : '';
 
-    const base = `
+    let inputEl;
+    if (f.type === 'textarea') {
+      inputEl = `<textarea class="db-fl-textarea" id="${f.id}" data-path="${f.path}" placeholder=" " rows="2"${disabledAttr}></textarea>`;
+    } else if (f.type === 'select') {
+      // Render a <select> dropdown using options stored in the field mapping
+      const opts = Object.keys(f.options || {});
+      const optHtml = opts.map(o => `<option value="${o}">${o}</option>`).join('');
+      inputEl = `<select class="db-fl-input" id="${f.id}" data-path="${f.path}"${disabledAttr}><option value=""></option>${optHtml}</select>`;
+    } else {
+      // For number inputs, add HTML min/max to provide browser-level hints
+      const constraints = f.type === 'number' ? getNumericConstraints(f) : null;
+      const minAttr = constraints ? ` min="${constraints.min}"` : '';
+      const maxAttr = constraints?.max != null ? ` max="${constraints.max}"` : '';
+      const itype = f.type === 'number' ? 'number' : f.type === 'date' ? 'date'
+                  : f.type === 'url'    ? 'url'    : f.type === 'email' ? 'email'
+                  : f.type === 'tel'   ? 'tel'    : 'text';
+      inputEl = `<input class="db-fl-input" type="${itype}" id="${f.id}" data-path="${f.path}" placeholder=" "${disabledAttr}${minAttr}${maxAttr}>`;
+    }
+
+    return `
       <div class="db-fl${f.type === 'textarea' ? ' db-col-full' : ''}">
-        ${f.type === 'textarea'
-          ? `<textarea class="db-fl-textarea" id="${f.id}" data-path="${f.path}" placeholder=" " rows="2"${disabledAttr}></textarea>`
-          : `<input class="db-fl-input" type="${f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : f.type === 'url' ? 'url' : f.type === 'email' ? 'email' : f.type === 'tel' ? 'tel' : 'text'}" id="${f.id}" data-path="${f.path}" placeholder=" "${disabledAttr}>`
-        }
+        ${inputEl}
         <label class="db-fl-label" for="${f.id}">${f.label}</label>
         <div class="db-fl-bar"></div>
         ${immutableNote}
         <div class="db-fl-error" id="${f.id}-err"></div>
       </div>`;
-    return base;
   }
 
   function renderDynamicForm(fields) {
@@ -585,8 +641,14 @@
       el.removeEventListener('change', checkDirty);
       const evt = el.tagName === 'SELECT' ? 'change' : 'input';
       el.addEventListener(evt, checkDirty);
+
       if (f.type === 'tel') {
         el.addEventListener('input', () => { el.value = el.value.replace(/[^\d]/g, '').slice(0, 15); });
+      }
+
+      // Real-time inline validation for numeric fields (Fixes #2, #3, #4, #7, #8)
+      if (f.type === 'number') {
+        el.addEventListener('input', () => validateNumericField(f));
       }
     });
 
@@ -615,6 +677,69 @@
         });
       }
     }
+
+    // Branch depends on degree / programme (Fix #9)
+    const degreeField = _fields.find(f => {
+      const k = f.key.toLowerCase();
+      return k === 'program' || k === 'degree' ||
+             f.path.toLowerCase().includes('education.program') ||
+             f.path.toLowerCase().includes('education.degree');
+    });
+    if (degreeField) {
+      const degEl = $(degreeField.id);
+      if (degEl) {
+        const triggerBranchUpdate = () => updateBranchOptions(degEl.value);
+        degEl.addEventListener('input',  triggerBranchUpdate);
+        degEl.addEventListener('change', triggerBranchUpdate);
+        // Run once on load to set initial branch options
+        if (degEl.value) triggerBranchUpdate();
+      }
+    }
+
+    // PG → UG conditional: highlight UG fields when a PG programme is chosen (Fix #6)
+    if (degreeField) {
+      const degEl = $(degreeField.id);
+      if (degEl) {
+        degEl.addEventListener('input',  () => updatePgUgVisibility(degEl.value));
+        degEl.addEventListener('change', () => updatePgUgVisibility(degEl.value));
+        updatePgUgVisibility(degEl.value || '');
+      }
+    }
+  }
+
+  // Highlight UG fields when student selects a PG programme (Fix #6)
+  function updatePgUgVisibility(degreeVal) {
+    const UG_PATHS = [
+      'academics.ug_percentage', 'academics.ug_degree',
+      'academics.ug_university',  'academics.ug_college',
+    ];
+    const isPg = isPgProgram(degreeVal);
+    _fields.forEach(f => {
+      if (!UG_PATHS.some(p => f.path.toLowerCase() === p)) return;
+      const el = $(f.id);
+      const labelEl = el?.closest('.db-fl')?.querySelector('.db-fl-label');
+      const wrapper = el?.closest('.db-fl');
+      if (!el) return;
+      if (isPg) {
+        if (wrapper) {
+          wrapper.style.display = '';
+          wrapper.style.outline = '2px solid var(--blue, #3b82f6)';
+          wrapper.style.padding = '6px';
+          wrapper.style.borderRadius = '8px';
+        }
+        if (labelEl) labelEl.setAttribute('data-required', '* Required for PG');
+      } else {
+        if (wrapper) {
+          wrapper.style.outline = '';
+          wrapper.style.padding = '';
+          wrapper.style.borderRadius = '';
+          // Conditional UI: UG fields are shown only for PG programmes.
+          wrapper.style.display = 'none';
+        }
+        if (labelEl) labelEl.removeAttribute('data-required');
+        clearFieldError(f.id);
+      }
+    });
   }
 
   function checkDirty() {
@@ -639,6 +764,77 @@
     if (err) { err.textContent = msg; err.style.display = 'block'; }
   }
 
+  // Real-time inline validation for a single numeric field (Fix #7)
+  function validateNumericField(f) {
+    const raw = v(f.id);
+    if (!raw) { clearFieldError(f.id); return; }
+    const num = Number(raw);
+    if (Number.isNaN(num)) { setFieldError(f.id, 'Must be a number'); return; }
+    const combined = (f.key + ' ' + f.path).toLowerCase();
+    if (combined.includes('age')) {
+      if (num < 0)   { setFieldError(f.id, 'Age cannot be negative'); return; }
+      if (num > 120) { setFieldError(f.id, 'Age must be 120 or less'); return; }
+    }
+    if (combined.includes('percentage') || combined.includes('percent')) {
+      if (num < 0 || num > 100) { setFieldError(f.id, 'Percentage must be between 0 and 100'); return; }
+    }
+    if (combined.includes('cgpa') || combined.includes('gpa')) {
+      if (num < 0 || num > 10) { setFieldError(f.id, 'GPA/CGPA must be between 0 and 10'); return; }
+    }
+    if (combined.includes('gap')) {
+      if (num < 0 || num > 12) { setFieldError(f.id, 'Education gap must be between 0 and 12 months'); return; }
+    }
+    clearFieldError(f.id);
+  }
+
+  // Return true if the given programme value is a PG programme (Fix #6)
+  function isPgProgram(val) {
+    const lo = (val || '').toLowerCase().trim();
+    return PG_PROGRAMS.some(p => lo.includes(p));
+  }
+
+  // Validate that PG students have filled their UG details (Fix #6)
+  function validatePgUgRequirement() {
+    const programField = _fields.find(f => {
+      const k = f.key.toLowerCase(), p = f.path.toLowerCase();
+      return k === 'program' || k === 'degree' || p.includes('education.program') || p.includes('education.degree');
+    });
+    if (!programField) return true;
+    if (!isPgProgram(v(programField.id))) return true;
+
+    let ok = true;
+    // UG paths that are mandatory when the student is in a PG programme
+    const UG_REQUIRED_PATHS = [
+      'academics.ug_percentage', 'academics.ug_degree',
+      'academics.ug_university',  'academics.ug_college',
+    ];
+    _fields.forEach(f => {
+      if (UG_REQUIRED_PATHS.some(p => f.path.toLowerCase() === p) && !v(f.id)) {
+        setFieldError(f.id, 'Required for PG students'); ok = false;
+      }
+    });
+    return ok;
+  }
+
+  // Update branch <select> options based on selected degree/programme (Fix #9)
+  function updateBranchOptions(degreeVal) {
+    const branchField = _fields.find(f => {
+      const k = f.key.toLowerCase();
+      return k === 'branch' || k === 'stream' || k.includes('branch');
+    });
+    if (!branchField) return;
+    const branchEl = $(branchField.id);
+    if (!branchEl || branchEl.tagName !== 'SELECT') return;
+    const key = (degreeVal || '').toLowerCase().trim();
+    const branches = DEGREE_BRANCH_MAP[key];
+    if (!branches) return;
+    const current = branchEl.value;
+    branchEl.innerHTML = `<option value=""></option>` +
+      branches.map(b => `<option value="${b}">${b}</option>`).join('');
+    if (branches.includes(current)) branchEl.value = current;
+    syncSelectLabel(branchEl);
+  }
+
   function validateAll() {
     let ok = true;
     _fields.forEach(f => clearFieldError(f.id));
@@ -646,17 +842,37 @@
     _fields.forEach(f => {
       const val = v(f.id);
       if (!val) return;
+
       if (f.type === 'number') {
         const num = Number(val);
-        if (Number.isNaN(num)) { setFieldError(f.id, 'Must be a number'); ok = false; }
+        if (Number.isNaN(num)) { setFieldError(f.id, 'Must be a number'); ok = false; return; }
+        // Range validation — prevents invalid values from reaching the database
+        const combined = (f.key + ' ' + f.path).toLowerCase();
+        if (combined.includes('age')) {
+          if (num < 0)   { setFieldError(f.id, 'Age cannot be negative');   ok = false; return; }
+          if (num > 120) { setFieldError(f.id, 'Age must be 120 or less');  ok = false; return; }
+        }
+        if (combined.includes('percentage') || combined.includes('percent')) {
+          if (num < 0 || num > 100) { setFieldError(f.id, 'Percentage must be between 0 and 100'); ok = false; return; }
+        }
+        if (combined.includes('cgpa') || combined.includes('gpa')) {
+          if (num < 0 || num > 10) { setFieldError(f.id, 'GPA/CGPA must be between 0 and 10'); ok = false; return; }
+        }
+        if (combined.includes('gap')) {
+          if (num < 0 || num > 12) { setFieldError(f.id, 'Education gap must be between 0 and 12 months'); ok = false; return; }
+        }
       }
-      if (f.type === 'url' && val && !/^https?:\/\//i.test(val)) {
+
+      if (f.type === 'url' && !/^https?:\/\//i.test(val)) {
         setFieldError(f.id, 'Include http(s)://'); ok = false;
       }
-      if (f.type === 'tel' && val && val.replace(/\D/g,'').length < 7) {
+      if (f.type === 'tel' && val.replace(/\D/g,'').length < 7) {
         setFieldError(f.id, 'Enter a valid phone'); ok = false;
       }
     });
+
+    // PG students must provide UG details before saving
+    if (!validatePgUgRequirement()) ok = false;
 
     return ok;
   }

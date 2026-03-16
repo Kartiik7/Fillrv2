@@ -445,6 +445,43 @@ main { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
   border-color: var(--blue);
   box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
 }
+.confirmation-value-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.suggested-value {
+  flex: 1;
+  font-size: 0.78rem;
+  font-family: var(--mono);
+  color: var(--text);
+  background: var(--blue-soft);
+  padding: 4px 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.btn-apply-field {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  background: var(--blue);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-apply-field:hover {
+  background: #1d4ed8;
+}
+.btn-apply-field:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 
 /* ── Learned Mappings ──────────────────────────── */
 .learned-section {

@@ -335,6 +335,27 @@
 
         </div><!-- /.adm-kw-grid -->
 
+        <!-- Dropdown Options (visible only when fieldType = select) -->
+        <div class="adm-field" id="optionsSection" style="display:none;">
+          <label class="adm-field-label">Dropdown Options</label>
+          <p class="adm-field-hint" style="margin-bottom:8px;">
+            Each option has a display label and optional aliases used for autofill matching.
+          </p>
+          <div id="optionsList" style="margin-bottom:10px;display:flex;flex-direction:column;gap:8px;"></div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <input type="text" class="adm-field-input" id="newOptionLabel"
+              placeholder="Label (e.g. B.Tech)" maxlength="100" autocomplete="off"
+              style="flex:1;min-width:120px;" aria-label="New option label">
+            <input type="text" class="adm-field-input" id="newOptionAliases"
+              placeholder="Aliases, comma-separated (e.g. btech, bachelor of technology)"
+              maxlength="400" autocomplete="off"
+              style="flex:2;min-width:200px;" aria-label="Option aliases">
+            <button type="button" class="adm-btn adm-btn-ghost" id="addOptionBtn"
+              style="white-space:nowrap;">+ Add Option</button>
+          </div>
+          <p class="adm-field-error" id="optionsError" role="alert" hidden></p>
+        </div>
+
         <div class="adm-modal-ftr">
           <button type="button" class="adm-btn adm-btn-ghost" id="modalCancel">Cancel</button>
           <button type="submit" class="adm-btn adm-btn-primary" id="saveBtn">
