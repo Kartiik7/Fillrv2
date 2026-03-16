@@ -68,6 +68,83 @@ const updatePendingBanner = (count) => {
 // Store pending confirmations and profile globally
 let pendingConfirmationsData = [];
 let currentProfile = null;
+let currentFieldMap = {};
+
+/**
+ * Safely resolve a nested value from an object by dot-path
+ * @param {Object} obj - Source object
+ * @param {string} path - Dot separated path
+ * @returns {any} Resolved value or null
+ */
+const getValueByPath = (obj, path) => {
+  if (!obj || !path) return null;
+  return path.split('.').reduce((acc, part) => {
+    if (acc === null || acc === undefined) return null;
+    return acc[part];
+  }, obj) ?? null;
+};
+
+/**
+ * Convert config payload into lookup map: key -> { path }
+ * @param {Object} response - FETCH_FULL_CONFIG response
+ * @returns {Object} Lookup map
+ */
+const buildFieldMapLookup = (response) => {
+  if (!response || !response.success) return {};
+
+  const source = response.mappings;
+  const map = {};
+
+  if (Array.isArray(source)) {
+    source.forEach((entry) => {
+      if (entry && entry.key && entry.path) {
+        map[entry.key] = { path: entry.path };
+      }
+    });
+    return map;
+  }
+
+  if (source && typeof source === 'object') {
+    Object.entries(source).forEach(([key, value]) => {
+      if (key && value && value.path) {
+        map[key] = { path: value.path };
+      }
+    });
+  }
+
+  return map;
+};
+
+/**
+ * Fetch field mappings from backend (via background proxy)
+ * and cache them for confirmation dropdown rendering.
+ * @returns {Promise<Object>} key -> { path }
+ */
+const ensureFieldMap = async () => {
+  if (Object.keys(currentFieldMap).length > 0) {
+    return currentFieldMap;
+  }
+
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ type: 'FETCH_FULL_CONFIG' }, (res) => {
+      currentFieldMap = buildFieldMapLookup(res);
+      resolve(currentFieldMap);
+    });
+  });
+};
+
+/**
+ * Resolve profile value for a selected mapping key.
+ * @param {string} selectedKey - FIELD_MAP key
+ * @returns {string} Resolved display value
+ */
+const resolveProfileValueForKey = (selectedKey) => {
+  if (!selectedKey || !currentProfile) return '';
+  const path = currentFieldMap[selectedKey]?.path;
+  if (!path) return '';
+  const value = getValueByPath(currentProfile, path);
+  return value === null || value === undefined ? '' : String(value);
+};
 
 /**
  * Highlight a field on the page by sending message to content script
@@ -359,10 +436,10 @@ const handleSaveToken = async () => {
 
 /**
  * Display medium-confidence fields in popup UI.
- * Shows: Label | Suggested Value | Apply Button per field.
+ * Shows: Label | Suggested Value | Mapping Dropdown | Apply Button per field.
  * @param {Array} confirmations - Array of medium-confidence field objects
  */
-const displayConfirmations = (confirmations) => {
+const displayConfirmations = async (confirmations) => {
   if (!confirmations || confirmations.length === 0) {
     confirmationsSection.style.display = 'none';
     updatePendingBanner(0);
@@ -372,9 +449,19 @@ const displayConfirmations = (confirmations) => {
   // Store globally for later use
   pendingConfirmationsData = confirmations;
   
+  const map = await ensureFieldMap();
+  const allKeys = Object.keys(map).sort((a, b) => a.localeCompare(b));
+
   confirmationsContent.innerHTML = '';
   
   confirmations.forEach((conf) => {
+    const selectedKey = conf.suggestedKey;
+    const selectedValue = resolveProfileValueForKey(selectedKey) || conf.suggestedValue || '';
+    const optionKeys = allKeys.length > 0 ? allKeys : [selectedKey];
+    const optionsHtml = optionKeys.map((key) => `
+      <option value="${esc(key)}" ${key === selectedKey ? 'selected' : ''}>${esc(key)}</option>
+    `).join('');
+
     const confItem = document.createElement('div');
     confItem.className = 'confirmation-item';
     confItem.setAttribute('data-field-id', conf.fieldId);
@@ -386,11 +473,14 @@ const displayConfirmations = (confirmations) => {
             <span class="confidence-badge">${(conf.confidence * 100).toFixed(0)}%</span>
           </label>
         </div>
+        <select class="confirmation-select" data-field-id="${conf.fieldId}">
+          ${optionsHtml}
+        </select>
         <div class="confirmation-value-row">
-          <span class="suggested-value">${esc(conf.suggestedValue || '\u2014')}</span>
+          <span class="suggested-value">${esc(selectedValue || '\u2014')}</span>
           <button class="btn-apply-field btn btn-blue btn-xs"
                   data-field-id="${conf.fieldId}"
-                  data-match-key="${esc(conf.suggestedKey)}">
+                  data-match-key="${esc(selectedKey)}">
             Apply
           </button>
         </div>
@@ -399,6 +489,22 @@ const displayConfirmations = (confirmations) => {
     confirmationsContent.appendChild(confItem);
   });
   
+  // Add event listeners for mapping dropdown changes
+  confirmationsContent.querySelectorAll('.confirmation-select').forEach(select => {
+    select.addEventListener('change', (event) => {
+      const selected = event.target;
+      const item = selected.closest('.confirmation-item');
+      const applyBtn = item?.querySelector('.btn-apply-field');
+      const valueEl = item?.querySelector('.suggested-value');
+
+      if (!applyBtn || !valueEl) return;
+
+      applyBtn.dataset.matchKey = selected.value;
+      const resolved = resolveProfileValueForKey(selected.value);
+      valueEl.textContent = resolved || '\u2014';
+    });
+  });
+
   // Add event listeners for individual Apply buttons
   confirmationsContent.querySelectorAll('.btn-apply-field').forEach(btn => {
     btn.addEventListener('click', () => applyMediumField(btn));
@@ -414,9 +520,16 @@ const displayConfirmations = (confirmations) => {
  */
 const applyMediumField = async (btn) => {
   const fieldId = btn.dataset.fieldId;
-  const matchKey = btn.dataset.matchKey;
+  const selectedKey = btn.dataset.matchKey;
   const conf = pendingConfirmationsData.find(c => c.fieldId === fieldId);
   if (!conf) return;
+
+  const valueToApply = resolveProfileValueForKey(selectedKey) || conf.suggestedValue;
+
+  if (!selectedKey || !valueToApply) {
+    showToast('No profile value found for selected mapping', 'warn');
+    return;
+  }
   
   try {
     btn.disabled = true;
@@ -426,8 +539,8 @@ const applyMediumField = async (btn) => {
     const response = await chrome.tabs.sendMessage(tab.id, {
       action: 'APPLY_MEDIUM_FILL',
       fieldId: fieldId,
-      matchKey: matchKey,
-      value: conf.suggestedValue
+      matchKey: selectedKey,
+      value: valueToApply
     });
     
     if (response && response.success) {
@@ -440,7 +553,7 @@ const applyMediumField = async (btn) => {
       const domain = await getCurrentDomain();
       if (domain) {
         const label = normalizeLabel(conf.labelText);
-        saveSiteMapping(domain, label, matchKey);
+        saveSiteMapping(domain, label, selectedKey);
       }
       
       // Remove from pending list
@@ -484,6 +597,7 @@ const handleAutofillPage = async () => {
     
     // Fetch profile via background proxy — token never enters popup context
     const profileData = await fetchProfile();
+    currentProfile = profileData;
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     
     if (!tab) {

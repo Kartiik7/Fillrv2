@@ -100,6 +100,7 @@ const dom = {
   mappingForm:    $('mappingForm'),
   inputKey:       $('inputKey'),
   inputPath:      $('inputPath'),
+  inputOrder:     $('inputOrder'),
   inputFieldType: $('inputFieldType'),
   optionsSection: $('optionsSection'),
   optionsList:    $('optionsList'),
@@ -112,6 +113,7 @@ const dom = {
   keyCount:       $('keyCount'),
   keyError:       $('keyError'),
   pathError:      $('pathError'),
+  orderError:     $('orderError'),
   // Delete confirm modal
   confirmModal:      $('confirmModal'),
   confirmClose:      $('confirmClose'),
@@ -204,6 +206,8 @@ async function fetchMappings({ highlightKey } = {}) {
     _mappings = (Array.isArray(data.mappings) ? data.mappings : []).map(m => ({
       key:       m.key,
       path:      m.path,
+      order:     Number.isFinite(m.order) ? m.order : 1,
+      orderGroup: m.orderGroup || '',
       fieldType: m.fieldType || 'text',
       primary:   Array.isArray(m.primary)   ? m.primary   : [],
       secondary: Array.isArray(m.secondary) ? m.secondary : [],
@@ -333,10 +337,17 @@ function renderTable(highlightKey) {
       <tr data-key="${escAttr(m.key)}"${m.key === highlightKey ? ' class="is-new"' : ''}>
         <td class="adm-cell-key">${escHtml(m.key)}</td>
         <td class="adm-cell-path">${escHtml(m.path)}</td>
+        <td class="adm-cell-rank">
+          <span class="adm-rank-pill">#${escHtml(String(m.order || 1))}</span>
+        </td>
         <td class="adm-cell-type"><span class="adm-type-badge adm-type-${escAttr(m.fieldType || 'text')}">${escHtml(m.fieldType || 'text')}</span></td>
         <td class="adm-cell-kw">${kwCell}</td>
         <td class="adm-cell-time">${m.updatedAt ? formatTime(m.updatedAt) : '—'}</td>
         <td class="adm-cell-actions">
+          <button class="adm-tbl-btn adm-tbl-btn-ghost" data-action="move-up" data-key="${escAttr(m.key)}" aria-label="Move ${escAttr(m.key)} up">↑</button>
+          <button class="adm-tbl-btn adm-tbl-btn-ghost" data-action="move-down" data-key="${escAttr(m.key)}" aria-label="Move ${escAttr(m.key)} down">↓</button>
+          <input class="adm-rank-input" type="number" min="1" value="${escAttr(String(m.order || 1))}" data-rank-input="${escAttr(m.key)}" aria-label="Set rank for ${escAttr(m.key)}">
+          <button class="adm-tbl-btn adm-tbl-btn-ghost" data-action="set-rank" data-key="${escAttr(m.key)}" aria-label="Set rank for ${escAttr(m.key)}">Set</button>
           <button class="adm-tbl-btn adm-tbl-btn-edit" data-action="edit" data-key="${escAttr(m.key)}" aria-label="Edit ${escAttr(m.key)}">Edit</button>
           <button class="adm-tbl-btn adm-tbl-btn-del"  data-action="delete" data-key="${escAttr(m.key)}" aria-label="Delete ${escAttr(m.key)}">Delete</button>
         </td>
@@ -347,13 +358,13 @@ function renderTable(highlightKey) {
   GROUP_DEFS.forEach(g => {
     const bucket = groupBuckets.get(g.key);
     if (!bucket || bucket.items.length === 0) return;
-    html.push(`<tr class="fm-group-row"><td colspan="6">${escHtml(bucket.label)}</td></tr>`);
+    html.push(`<tr class="fm-group-row"><td colspan="7">${escHtml(bucket.label)}</td></tr>`);
     bucket.items.forEach(m => html.push(renderRow(m)));
   });
 
   const otherBucket = groupBuckets.get('other');
   if (otherBucket && otherBucket.items.length > 0) {
-    html.push(`<tr class="fm-group-row"><td colspan="6">${escHtml(otherBucket.label)}</td></tr>`);
+    html.push(`<tr class="fm-group-row"><td colspan="7">${escHtml(otherBucket.label)}</td></tr>`);
     otherBucket.items.forEach(m => html.push(renderRow(m)));
   }
 
@@ -415,6 +426,7 @@ function openModal(mapping = null) {
   dom.inputKey.value       = isEdit ? mapping.key : '';
   dom.inputKey.readOnly    = isEdit;
   dom.inputPath.value      = isEdit ? mapping.path : '';
+  dom.inputOrder.value     = isEdit ? String(mapping.order || 1) : '';
   dom.inputFieldType.value = isEdit ? (mapping.fieldType || 'text') : 'text';
   dom.keyCount.textContent = `${dom.inputKey.value.length} / 40`;
 
@@ -443,6 +455,7 @@ function closeModal() {
     renderTags(cat);
   });
   dom.mappingForm.reset();
+  dom.inputOrder.value = '';
   clearAllErrors();
   toggleOptionsSection('text');
 }
@@ -525,6 +538,7 @@ function validateMapping() {
   const errors = {};
   const key  = dom.inputKey.value.trim();
   const path = dom.inputPath.value.trim();
+  const orderRaw = dom.inputOrder.value.trim();
 
   if (!_editingKey) {
     if (!key)                                    errors.key = 'Key is required.';
@@ -536,6 +550,13 @@ function validateMapping() {
   if (!path)                   errors.path = 'Path is required.';
   else if (path.length > 100)  errors.path = 'Path must be 100 characters or fewer.';
   else if (!PATH_RE.test(path)) errors.path = 'Path must contain only letters, numbers, dots, underscores, or hyphens.';
+
+  if (orderRaw) {
+    const rank = Number.parseInt(orderRaw, 10);
+    if (!Number.isFinite(rank) || rank < 1) {
+      errors.order = 'Rank must be a positive integer.';
+    }
+  }
 
   // Only primary is required
   if (_kw.primary.length === 0)              errors.primary = 'At least one primary keyword is required.';
@@ -567,6 +588,7 @@ async function saveMapping() {
   if (!valid) {
     if (errors.key)     { showFieldError('keyError',     errors.key);     dom.inputKey.focus();  return; }
     if (errors.path)    { showFieldError('pathError',    errors.path);    dom.inputPath.focus(); return; }
+    if (errors.order)   { showFieldError('orderError',   errors.order);   dom.inputOrder.focus(); return; }
     if (errors.primary) { showFieldError('primaryError', errors.primary);                        return; }
     if (errors.options) { showFieldError('optionsError', errors.options);                        return; }
     // Show any optional category error
@@ -587,6 +609,11 @@ async function saveMapping() {
     // Include options only when fieldType is select (prevents unnecessary DB fields)
     ...(dom.inputFieldType.value === 'select' ? { options: _options } : {}),
   };
+
+  const rankRaw = dom.inputOrder.value.trim();
+  if (rankRaw) {
+    payload.order = Number.parseInt(rankRaw, 10);
+  }
 
   setSaving(true);
   _isSaving = true;
@@ -652,6 +679,35 @@ async function confirmDelete() {
   }
 }
 
+async function reorderMapping(key, payload) {
+  try {
+    await apiFetch(`/admin/field-mappings/${encodeURIComponent(key)}/reorder`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+    await fetchMappings({ highlightKey: key });
+    notifyMappingsChanged();
+    showToast('Rank updated.', 'success');
+  } catch (err) {
+    if (err.message !== 'UNAUTHORIZED' && err.message !== 'FORBIDDEN') {
+      showToast(err.message || 'Failed to reorder mapping.', 'error');
+    }
+  }
+}
+
+async function moveMapping(key, direction) {
+  if (!key) return;
+  await reorderMapping(key, { direction });
+}
+
+async function setMappingRank(key, rank) {
+  if (!Number.isFinite(rank) || rank < 1) {
+    showToast('Rank must be a positive integer.', 'error');
+    return;
+  }
+  await reorderMapping(key, { order: rank });
+}
+
 /* ════════════════════════════════════════════════════════════ *
  *  UI STATE HELPERS                                            *
  * ════════════════════════════════════════════════════════════ */
@@ -705,7 +761,7 @@ function showFieldError(id, msg) {
   // Map error id to its associated input
   const catMatch = id.match(/^(primary|secondary|generic|negative)Error$/);
   if (catMatch) { kwDom[catMatch[1]].input.classList.add('is-error'); return; }
-  const inputMap = { keyError: dom.inputKey, pathError: dom.inputPath };
+  const inputMap = { keyError: dom.inputKey, pathError: dom.inputPath, orderError: dom.inputOrder };
   if (inputMap[id]) inputMap[id].classList.add('is-error');
 }
 
@@ -716,12 +772,12 @@ function clearFieldError(id) {
   el.hidden = true;
   const catMatch = id.match(/^(primary|secondary|generic|negative)Error$/);
   if (catMatch) { kwDom[catMatch[1]].input.classList.remove('is-error'); return; }
-  const inputMap = { keyError: dom.inputKey, pathError: dom.inputPath };
+  const inputMap = { keyError: dom.inputKey, pathError: dom.inputPath, orderError: dom.inputOrder };
   if (inputMap[id]) inputMap[id].classList.remove('is-error');
 }
 
 function clearAllErrors() {
-  ['keyError', 'pathError', 'primaryError', 'secondaryError', 'genericError', 'negativeError', 'optionsError']
+  ['keyError', 'pathError', 'orderError', 'primaryError', 'secondaryError', 'genericError', 'negativeError', 'optionsError']
     .forEach(id => clearFieldError(id));
 }
 
@@ -895,6 +951,15 @@ dom.fmBody.addEventListener('click', (e) => {
   if (action === 'edit') {
     const mapping = _mappings.find(m => m.key === key);
     if (mapping) openModal(mapping);
+  } else if (action === 'move-up') {
+    moveMapping(key, 'up');
+  } else if (action === 'move-down') {
+    moveMapping(key, 'down');
+  } else if (action === 'set-rank') {
+    const input = Array.from(dom.fmBody.querySelectorAll('[data-rank-input]'))
+      .find((el) => el.dataset.rankInput === key);
+    const rank = Number.parseInt(input?.value || '', 10);
+    setMappingRank(key, rank);
   } else if (action === 'delete') {
     deleteMapping(key);
   }
@@ -902,8 +967,8 @@ dom.fmBody.addEventListener('click', (e) => {
 
 // Table: double-click any row/cell to open edit modal
 dom.fmBody.addEventListener('dblclick', (e) => {
-  // Ignore explicit action buttons; they already have click handlers
-  if (e.target.closest('button')) return;
+  // Ignore explicit action controls; they already have handlers
+  if (e.target.closest('button') || e.target.closest('input')) return;
 
   const row = e.target.closest('tr[data-key]');
   if (!row) return;
@@ -926,6 +991,17 @@ dom.inputKey.addEventListener('input', () => {
   clearFieldError('keyError');
 });
 dom.inputPath.addEventListener('input', () => clearFieldError('pathError'));
+dom.inputOrder.addEventListener('input', () => clearFieldError('orderError'));
+
+dom.fmBody.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  const input = e.target.closest('[data-rank-input]');
+  if (!input) return;
+  e.preventDefault();
+  const key = input.dataset.rankInput;
+  const rank = Number.parseInt(input.value || '', 10);
+  setMappingRank(key, rank);
+});
 
 // Show/hide options section when field type changes
 dom.inputFieldType.addEventListener('change', () => {

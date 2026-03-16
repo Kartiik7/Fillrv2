@@ -45,6 +45,11 @@ const normalizeOptions = (options) => {
   return Object.fromEntries(entries);
 };
 
+const inferOrderGroup = (path) => {
+  const root = String(path || '').split('.')[0].trim().toLowerCase();
+  return root || 'other';
+};
+
 /**
  * GET /api/config/full
  * Returns the current config version AND all field mappings in a single response.
@@ -66,7 +71,8 @@ router.get('/full', async (_req, res) => {
     const [config, rawMappings] = await Promise.all([
       ConfigVersion.current(),
       FieldMapping.find({})
-        .select('-_id key path fieldType primary secondary generic negative options')
+        .select('-_id key path fieldType primary secondary generic negative options order orderGroup')
+        .sort({ orderGroup: 1, order: 1, key: 1 })
         .lean(),
     ]);
 
@@ -75,6 +81,8 @@ router.get('/full', async (_req, res) => {
       mappings[m.key] = {
         path:      m.path,
         fieldType: m.fieldType || 'text',
+        orderGroup: m.orderGroup || inferOrderGroup(m.path),
+        order: Number.isFinite(m.order) && m.order > 0 ? m.order : 1,
         primary:   m.primary   || [],
         secondary: m.secondary || [],
         generic:   m.generic   || [],
@@ -103,7 +111,8 @@ router.get('/full', async (_req, res) => {
 router.get('/field-mappings', async (_req, res) => {
   try {
     const mappings = await FieldMapping.find({})
-      .select('-_id key path fieldType primary secondary generic negative options')
+      .select('-_id key path fieldType primary secondary generic negative options order orderGroup')
+      .sort({ orderGroup: 1, order: 1, key: 1 })
       .lean();
 
     // Transform array into { key: { path, fieldType, primary, secondary, generic, negative, options } } object
@@ -112,6 +121,8 @@ router.get('/field-mappings', async (_req, res) => {
       result[m.key] = {
         path:      m.path,
         fieldType: m.fieldType || 'text',
+        orderGroup: m.orderGroup || inferOrderGroup(m.path),
+        order: Number.isFinite(m.order) && m.order > 0 ? m.order : 1,
         primary:   m.primary   || [],
         secondary: m.secondary || [],
         generic:   m.generic   || [],

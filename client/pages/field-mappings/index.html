@@ -126,10 +126,11 @@
           <tr>
             <th scope="col" style="width:16%">Key</th>
             <th scope="col" style="width:18%">Path</th>
+            <th scope="col" style="width:90px">Rank</th>
             <th scope="col" style="width:80px">Type</th>
             <th scope="col">Keywords</th>
             <th scope="col" style="width:130px">Updated</th>
-            <th scope="col" style="width:120px">Actions</th>
+            <th scope="col" style="width:220px">Actions</th>
           </tr>
         </thead>
         <tbody id="fmBody"></tbody>
@@ -205,6 +206,27 @@
           >
           <p class="adm-field-hint" id="pathHint">Dot-notation path to the user profile field.</p>
           <p class="adm-field-error" id="pathError" role="alert" hidden></p>
+        </div>
+
+        <!-- Rank -->
+        <div class="adm-field">
+          <label class="adm-field-label" for="inputOrder">
+            Rank
+          </label>
+          <input
+            type="number"
+            class="adm-field-input"
+            id="inputOrder"
+            name="order"
+            min="1"
+            step="1"
+            placeholder="Auto (append to end)"
+            aria-describedby="orderHint orderError"
+          >
+          <p class="adm-field-hint" id="orderHint">
+            Rank is scoped per category (derived from the first path segment, for example personal.*, academics.*).
+          </p>
+          <p class="adm-field-error" id="orderError" role="alert" hidden></p>
         </div>
 
         <!-- Field Type -->

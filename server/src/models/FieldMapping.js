@@ -67,6 +67,20 @@ const fieldMappingSchema = new mongoose.Schema(
       of: [String],
       default: undefined,
     },
+    // Category-scoped admin display ordering (does not affect matching logic)
+    orderGroup: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 40,
+      default: 'other',
+    },
+    order: {
+      type: Number,
+      required: true,
+      min: 1,
+      default: 1,
+    },
   },
   {
     timestamps: true,
@@ -76,5 +90,7 @@ const fieldMappingSchema = new mongoose.Schema(
 
 // Index on key for fast lookups
 fieldMappingSchema.index({ key: 1 }, { unique: true });
+// Index for category-scoped rank queries/reordering
+fieldMappingSchema.index({ orderGroup: 1, order: 1, key: 1 });
 
 module.exports = mongoose.model('FieldMapping', fieldMappingSchema);

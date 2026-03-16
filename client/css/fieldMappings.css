@@ -30,6 +30,53 @@
   margin-left: 8px;
 }
 
+.adm-cell-rank {
+  white-space: nowrap;
+}
+
+.adm-rank-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.adm-rank-input {
+  width: 56px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 4px 6px;
+  font-size: 0.78rem;
+  color: var(--text);
+  background: var(--surface);
+}
+
+.adm-rank-input:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--blue-glow);
+}
+
+.adm-tbl-btn-ghost {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.adm-tbl-btn-ghost:hover {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--blue-glow);
+}
+
 /* ── Group header rows within table ───────────────────────── */
 .fm-group-row td {
   background: var(--bg);
