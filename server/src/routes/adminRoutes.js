@@ -262,15 +262,22 @@ const normalizeOptions = (options) => {
   return Object.fromEntries(entries);
 };
 
+const applySession = (query, session) => (session ? query.session(session) : query);
+
+const withSessionOption = (session) => (session ? { session } : undefined);
+
 const inferOrderGroup = (path) => {
   const root = String(path || '').split('.')[0].trim().toLowerCase();
   return root || 'other';
 };
 
-const normalizeGroupOrders = async (orderGroup) => {
+const normalizeGroupOrders = async (orderGroup, session = null) => {
   if (!orderGroup) return;
 
-  const docs = await FieldMapping.find({ orderGroup })
+  const docs = await applySession(
+    FieldMapping.find({ orderGroup }),
+    session
+  )
     .select('_id key order createdAt')
     .sort({ order: 1, createdAt: 1, key: 1 })
     .lean();
@@ -291,11 +298,82 @@ const normalizeGroupOrders = async (orderGroup) => {
   });
 
   if (ops.length > 0) {
-    await FieldMapping.bulkWrite(ops);
+    await FieldMapping.bulkWrite(ops, withSessionOption(session));
   }
 };
 
-const getGroupCount = (orderGroup) => FieldMapping.countDocuments({ orderGroup });
+const ensureOrderMetadata = async (session = null) => {
+  const docs = await applySession(
+    FieldMapping.find({}),
+    session
+  )
+    .select('_id key path order orderGroup')
+    .lean();
+
+  const ops = [];
+  const groups = new Set();
+
+  docs.forEach((doc) => {
+    const inferredGroup = doc.orderGroup || inferOrderGroup(doc.path);
+    const normalizedOrder = Number.isFinite(doc.order) && doc.order > 0
+      ? Math.trunc(doc.order)
+      : 1;
+
+    groups.add(inferredGroup);
+
+    if (doc.orderGroup !== inferredGroup || doc.order !== normalizedOrder) {
+      ops.push({
+        updateOne: {
+          filter: { _id: doc._id },
+          update: { $set: { orderGroup: inferredGroup, order: normalizedOrder } },
+        },
+      });
+    }
+  });
+
+  if (ops.length > 0) {
+    await FieldMapping.bulkWrite(ops, withSessionOption(session));
+  }
+
+  return Array.from(groups);
+};
+
+const getGroupCount = async (orderGroup, session = null) => {
+  return applySession(FieldMapping.countDocuments({ orderGroup }), session);
+};
+
+const isTransactionUnsupportedError = (err) => {
+  const msg = String(err?.message || '');
+  return msg.includes('Transaction numbers are only allowed on a replica set member or mongos') ||
+    msg.includes('replica set') ||
+    msg.includes('Transaction support');
+};
+
+const runAtomic = async (operationName, worker) => {
+  if (mongoose.connection.readyState !== 1 || typeof mongoose.startSession !== 'function') {
+    return worker(null);
+  }
+
+  let session;
+  try {
+    session = await mongoose.startSession();
+    let result;
+    await session.withTransaction(async () => {
+      result = await worker(session);
+    });
+    return result;
+  } catch (err) {
+    if (session && isTransactionUnsupportedError(err)) {
+      logger.warn(`[adminRoutes] ${operationName}: transactions unavailable, using non-transactional fallback.`);
+      return worker(null);
+    }
+    throw err;
+  } finally {
+    if (session) {
+      await session.endSession();
+    }
+  }
+};
 
 // ── GET /api/admin/field-mappings ─────────────────────────────
 // Returns full array with updatedAt + order metadata for the admin editor UI.
@@ -305,6 +383,12 @@ const getGroupCount = (orderGroup) => FieldMapping.countDocuments({ orderGroup }
 // reach the client as undefined.
 router.get('/field-mappings', async (_req, res) => {
   try {
+    // Read-time healing for legacy/corrupted rank data to avoid duplicate ranks in admin UI.
+    const groups = await ensureOrderMetadata();
+    for (const group of groups) {
+      await normalizeGroupOrders(group);
+    }
+
     const raw = await FieldMapping.find({})
       .select('-_id key path fieldType primary secondary generic negative options order orderGroup updatedAt')
       .sort({ orderGroup: 1, order: 1, key: 1 })
@@ -388,117 +472,137 @@ router.post('/field-mappings', async (req, res) => {
   }
 
   try {
-    const requestedGroup = inferOrderGroup(value.path);
-    const hasRequestedOrder = Number.isFinite(value.order);
+    const result = await runAtomic('FIELD_MAPPING_UPSERT', async (session) => {
+      const requestedGroup = inferOrderGroup(value.path);
+      const hasRequestedOrder = Number.isFinite(value.order);
 
-    const existing = await FieldMapping.findOne({ key: value.key })
-      .select('_id key path order orderGroup')
-      .lean();
+      await ensureOrderMetadata(session);
 
-    let targetOrder;
+      const existing = await applySession(
+        FieldMapping.findOne({ key: value.key }),
+        session
+      )
+        .select('_id key path order orderGroup')
+        .lean();
 
-    if (!existing) {
-      await normalizeGroupOrders(requestedGroup);
-      const groupCount = await getGroupCount(requestedGroup);
+      let targetOrder;
 
-      if (hasRequestedOrder) {
-        targetOrder = Math.min(Math.max(1, value.order), groupCount + 1);
-        await FieldMapping.updateMany(
-          { orderGroup: requestedGroup, order: { $gte: targetOrder } },
-          { $inc: { order: 1 } }
-        );
-      } else {
-        targetOrder = groupCount + 1;
-      }
-    } else {
-      const existingGroup = existing.orderGroup || inferOrderGroup(existing.path);
-      const existingOrder = Number.isFinite(existing.order) && existing.order > 0 ? existing.order : 1;
-
-      // Ensure legacy documents have stable metadata before applying shifts.
-      await FieldMapping.updateOne(
-        { _id: existing._id },
-        { $set: { orderGroup: existingGroup, order: existingOrder } }
-      );
-
-      await normalizeGroupOrders(existingGroup);
-
-      if (existingGroup !== requestedGroup) {
-        const current = await FieldMapping.findOne({ key: value.key }).select('order').lean();
-        const oldOrder = current?.order || 1;
-
-        // Removing from old category closes the gap.
-        await FieldMapping.updateMany(
-          { orderGroup: existingGroup, key: { $ne: value.key }, order: { $gt: oldOrder } },
-          { $inc: { order: -1 } }
-        );
-
-        await normalizeGroupOrders(requestedGroup);
-        const targetGroupCount = await getGroupCount(requestedGroup);
+      if (!existing) {
+        await normalizeGroupOrders(requestedGroup, session);
+        const groupCount = await getGroupCount(requestedGroup, session);
 
         if (hasRequestedOrder) {
-          targetOrder = Math.min(Math.max(1, value.order), targetGroupCount + 1);
+          targetOrder = Math.min(Math.max(1, value.order), groupCount + 1);
           await FieldMapping.updateMany(
             { orderGroup: requestedGroup, order: { $gte: targetOrder } },
-            { $inc: { order: 1 } }
+            { $inc: { order: 1 } },
+            withSessionOption(session)
           );
         } else {
-          targetOrder = targetGroupCount + 1;
+          targetOrder = groupCount + 1;
         }
       } else {
-        const groupCount = await getGroupCount(requestedGroup);
-        const oldOrder = (await FieldMapping.findOne({ key: value.key }).select('order').lean())?.order || 1;
-        targetOrder = hasRequestedOrder
-          ? Math.min(Math.max(1, value.order), groupCount)
-          : oldOrder;
+        const existingGroup = existing.orderGroup || inferOrderGroup(existing.path);
+        const existingOrder = Number.isFinite(existing.order) && existing.order > 0 ? existing.order : 1;
 
-        if (targetOrder < oldOrder) {
+        await FieldMapping.updateOne(
+          { _id: existing._id },
+          { $set: { orderGroup: existingGroup, order: existingOrder } },
+          withSessionOption(session)
+        );
+
+        await normalizeGroupOrders(existingGroup, session);
+
+        if (existingGroup !== requestedGroup) {
+          const current = await applySession(
+            FieldMapping.findOne({ key: value.key }),
+            session
+          ).select('order').lean();
+          const oldOrder = current?.order || 1;
+
           await FieldMapping.updateMany(
-            {
-              orderGroup: requestedGroup,
-              key: { $ne: value.key },
-              order: { $gte: targetOrder, $lt: oldOrder },
-            },
-            { $inc: { order: 1 } }
+            { orderGroup: existingGroup, key: { $ne: value.key }, order: { $gt: oldOrder } },
+            { $inc: { order: -1 } },
+            withSessionOption(session)
           );
-        } else if (targetOrder > oldOrder) {
-          await FieldMapping.updateMany(
-            {
-              orderGroup: requestedGroup,
-              key: { $ne: value.key },
-              order: { $gt: oldOrder, $lte: targetOrder },
-            },
-            { $inc: { order: -1 } }
-          );
+
+          await normalizeGroupOrders(requestedGroup, session);
+          const targetGroupCount = await getGroupCount(requestedGroup, session);
+
+          if (hasRequestedOrder) {
+            targetOrder = Math.min(Math.max(1, value.order), targetGroupCount + 1);
+            await FieldMapping.updateMany(
+              { orderGroup: requestedGroup, order: { $gte: targetOrder } },
+              { $inc: { order: 1 } },
+              withSessionOption(session)
+            );
+          } else {
+            targetOrder = targetGroupCount + 1;
+          }
+        } else {
+          const groupCount = await getGroupCount(requestedGroup, session);
+          const oldOrder = (await applySession(
+            FieldMapping.findOne({ key: value.key }),
+            session
+          ).select('order').lean())?.order || 1;
+          targetOrder = hasRequestedOrder
+            ? Math.min(Math.max(1, value.order), groupCount)
+            : oldOrder;
+
+          if (targetOrder < oldOrder) {
+            await FieldMapping.updateMany(
+              {
+                orderGroup: requestedGroup,
+                key: { $ne: value.key },
+                order: { $gte: targetOrder, $lt: oldOrder },
+              },
+              { $inc: { order: 1 } },
+              withSessionOption(session)
+            );
+          } else if (targetOrder > oldOrder) {
+            await FieldMapping.updateMany(
+              {
+                orderGroup: requestedGroup,
+                key: { $ne: value.key },
+                order: { $gt: oldOrder, $lte: targetOrder },
+              },
+              { $inc: { order: -1 } },
+              withSessionOption(session)
+            );
+          }
         }
       }
-    }
 
-    const mapping = await FieldMapping.findOneAndUpdate(
-      { key: value.key },
-      {
-        key:       value.key,
-        path:      value.path,
-        fieldType: value.fieldType || 'text',
-        orderGroup: requestedGroup,
-        order:     targetOrder,
-        primary:   value.primary,
-        secondary: value.secondary,
-        generic:   value.generic,
-        negative:  value.negative,
-        // Persist options only when provided; undefined leaves existing value unchanged
-        ...(value.options !== undefined ? { options: value.options } : {}),
-        updatedAt: new Date(),
-      },
-      { upsert: true, new: true, runValidators: true }
-    );
+      const mapping = await FieldMapping.findOneAndUpdate(
+        { key: value.key },
+        {
+          key:       value.key,
+          path:      value.path,
+          fieldType: value.fieldType || 'text',
+          orderGroup: requestedGroup,
+          order:     targetOrder,
+          primary:   value.primary,
+          secondary: value.secondary,
+          generic:   value.generic,
+          negative:  value.negative,
+          ...(value.options !== undefined ? { options: value.options } : {}),
+          updatedAt: new Date(),
+        },
+        { upsert: true, new: true, runValidators: true, ...(session ? { session } : {}) }
+      );
 
-    await normalizeGroupOrders(requestedGroup);
-    if (existing) {
-      const previousGroup = existing.orderGroup || inferOrderGroup(existing.path);
-      if (previousGroup !== requestedGroup) {
-        await normalizeGroupOrders(previousGroup);
+      await normalizeGroupOrders(requestedGroup, session);
+      if (existing) {
+        const previousGroup = existing.orderGroup || inferOrderGroup(existing.path);
+        if (previousGroup !== requestedGroup) {
+          await normalizeGroupOrders(previousGroup, session);
+        }
       }
-    }
+
+      return { mapping, requestedGroup, targetOrder, existing };
+    });
+
+    const { mapping, requestedGroup, targetOrder, existing } = result;
 
     // Bump config version for both creates and edits so extension cache refreshes immediately.
     await ConfigVersion.bump();
@@ -560,55 +664,85 @@ router.patch('/field-mappings/:key/reorder', async (req, res) => {
     const key = paramResult.value.key;
     const payload = bodyResult.value;
 
-    const existing = await FieldMapping.findOne({ key }).select('_id key path order orderGroup').lean();
-    if (!existing) {
+    const result = await runAtomic('FIELD_MAPPING_REORDER', async (session) => {
+      await ensureOrderMetadata(session);
+
+      const existing = await applySession(
+        FieldMapping.findOne({ key }),
+        session
+      ).select('_id key path order orderGroup').lean();
+      if (!existing) {
+        return { missing: true };
+      }
+
+      const group = existing.orderGroup || inferOrderGroup(existing.path);
+      const currentOrder = Number.isFinite(existing.order) && existing.order > 0 ? existing.order : 1;
+
+      await FieldMapping.updateOne(
+        { _id: existing._id },
+        { $set: { orderGroup: group, order: currentOrder } },
+        withSessionOption(session)
+      );
+
+      await normalizeGroupOrders(group, session);
+
+      const normalizedCurrent = (await applySession(
+        FieldMapping.findOne({ key }),
+        session
+      ).select('order').lean())?.order || 1;
+      const groupCount = await getGroupCount(group, session);
+
+      let targetOrder = normalizedCurrent;
+      if (payload.direction === 'up') {
+        targetOrder = Math.max(1, normalizedCurrent - 1);
+      } else if (payload.direction === 'down') {
+        targetOrder = Math.min(groupCount, normalizedCurrent + 1);
+      } else {
+        targetOrder = Math.min(Math.max(1, payload.order), groupCount);
+      }
+
+      if (targetOrder < normalizedCurrent) {
+        await FieldMapping.updateMany(
+          {
+            orderGroup: group,
+            key: { $ne: key },
+            order: { $gte: targetOrder, $lt: normalizedCurrent },
+          },
+          { $inc: { order: 1 } },
+          withSessionOption(session)
+        );
+      } else if (targetOrder > normalizedCurrent) {
+        await FieldMapping.updateMany(
+          {
+            orderGroup: group,
+            key: { $ne: key },
+            order: { $gt: normalizedCurrent, $lte: targetOrder },
+          },
+          { $inc: { order: -1 } },
+          withSessionOption(session)
+        );
+      }
+
+      await FieldMapping.updateOne(
+        { key },
+        { $set: { order: targetOrder, updatedAt: new Date() } },
+        withSessionOption(session)
+      );
+      await normalizeGroupOrders(group, session);
+
+      return {
+        missing: false,
+        group,
+        normalizedCurrent,
+        targetOrder,
+      };
+    });
+
+    if (result.missing) {
       return res.status(404).json({ success: false, message: `No mapping found for key '${key}'.` });
     }
 
-    const group = existing.orderGroup || inferOrderGroup(existing.path);
-    const currentOrder = Number.isFinite(existing.order) && existing.order > 0 ? existing.order : 1;
-
-    await FieldMapping.updateOne(
-      { _id: existing._id },
-      { $set: { orderGroup: group, order: currentOrder } }
-    );
-
-    await normalizeGroupOrders(group);
-
-    const normalizedCurrent = (await FieldMapping.findOne({ key }).select('order').lean())?.order || 1;
-    const groupCount = await getGroupCount(group);
-
-    let targetOrder = normalizedCurrent;
-    if (payload.direction === 'up') {
-      targetOrder = Math.max(1, normalizedCurrent - 1);
-    } else if (payload.direction === 'down') {
-      targetOrder = Math.min(groupCount, normalizedCurrent + 1);
-    } else {
-      targetOrder = Math.min(Math.max(1, payload.order), groupCount);
-    }
-
-    if (targetOrder < normalizedCurrent) {
-      await FieldMapping.updateMany(
-        {
-          orderGroup: group,
-          key: { $ne: key },
-          order: { $gte: targetOrder, $lt: normalizedCurrent },
-        },
-        { $inc: { order: 1 } }
-      );
-    } else if (targetOrder > normalizedCurrent) {
-      await FieldMapping.updateMany(
-        {
-          orderGroup: group,
-          key: { $ne: key },
-          order: { $gt: normalizedCurrent, $lte: targetOrder },
-        },
-        { $inc: { order: -1 } }
-      );
-    }
-
-    await FieldMapping.updateOne({ key }, { $set: { order: targetOrder, updatedAt: new Date() } });
-    await normalizeGroupOrders(group);
+    const { group, normalizedCurrent, targetOrder } = result;
 
     await ConfigVersion.bump();
 
@@ -650,27 +784,44 @@ router.delete('/field-mappings/:key', async (req, res) => {
   }
 
   try {
-    const existing = await FieldMapping.findOne({ key: value.key })
-      .select('_id key path order orderGroup')
-      .lean();
+    const txResult = await runAtomic('FIELD_MAPPING_DELETE', async (session) => {
+      await ensureOrderMetadata(session);
 
-    if (!existing) {
+      const existing = await applySession(
+        FieldMapping.findOne({ key: value.key }),
+        session
+      )
+        .select('_id key path order orderGroup')
+        .lean();
+
+      if (!existing) {
+        return { missing: true };
+      }
+
+      const group = existing.orderGroup || inferOrderGroup(existing.path);
+      const order = Number.isFinite(existing.order) && existing.order > 0 ? existing.order : 1;
+
+      const result = await FieldMapping.findOneAndDelete(
+        { key: value.key },
+        session ? { session } : {}
+      );
+      if (!result) {
+        return { missing: true };
+      }
+
+      await FieldMapping.updateMany(
+        { orderGroup: group, order: { $gt: order } },
+        { $inc: { order: -1 } },
+        withSessionOption(session)
+      );
+      await normalizeGroupOrders(group, session);
+
+      return { missing: false };
+    });
+
+    if (txResult.missing) {
       return res.status(404).json({ success: false, message: `No mapping found for key '${value.key}'.` });
     }
-
-    const group = existing.orderGroup || inferOrderGroup(existing.path);
-    const order = Number.isFinite(existing.order) && existing.order > 0 ? existing.order : 1;
-
-    const result = await FieldMapping.findOneAndDelete({ key: value.key });
-    if (!result) {
-      return res.status(404).json({ success: false, message: `No mapping found for key '${value.key}'.` });
-    }
-
-    await FieldMapping.updateMany(
-      { orderGroup: group, order: { $gt: order } },
-      { $inc: { order: -1 } }
-    );
-    await normalizeGroupOrders(group);
 
     await ConfigVersion.bump();
 

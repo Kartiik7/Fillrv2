@@ -27,6 +27,7 @@ jest.mock('../models/LifetimeMetric', () => ({
 
 jest.mock('../models/ConfigVersion', () => ({
   current: jest.fn(),
+  bump: jest.fn(),
 }));
 
 jest.mock('../models/AuditLog', () => ({
@@ -47,6 +48,13 @@ jest.mock('../models/User', () => ({
 
 jest.mock('../models/FieldMapping', () => ({
   find: jest.fn(),
+  findOne: jest.fn(),
+  countDocuments: jest.fn(),
+  updateMany: jest.fn(),
+  updateOne: jest.fn(),
+  findOneAndUpdate: jest.fn(),
+  findOneAndDelete: jest.fn(),
+  bulkWrite: jest.fn(),
 }));
 
 jest.mock('../services/auditService', () => ({
@@ -78,6 +86,12 @@ const createChain = (terminalValue) => ({
   limit: jest.fn().mockReturnThis(),
   select: jest.fn().mockReturnThis(),
   lean: jest.fn().mockResolvedValue(terminalValue),
+});
+
+const createSelectLeanChain = (terminalValue) => ({
+  select: jest.fn().mockReturnValue({
+    lean: jest.fn().mockResolvedValue(terminalValue),
+  }),
 });
 
 describe('adminRoutes new endpoints', () => {
@@ -380,6 +394,155 @@ describe('adminRoutes new endpoints', () => {
       }),
     }));
     expect(User.deleteOne).not.toHaveBeenCalled();
+  });
+
+  it('PATCH /api/admin/field-mappings/:key/reorder moves rank up within the same group', async () => {
+    const key = 'university_roll_number';
+
+    FieldMapping.findOne
+      .mockReturnValueOnce(createSelectLeanChain({
+        _id: '507f1f77bcf86cd799439099',
+        key,
+        path: 'ids.uid',
+        order: 3,
+        orderGroup: 'ids',
+      }))
+      .mockReturnValueOnce(createSelectLeanChain({ order: 3 }))
+      .mockReturnValueOnce(createSelectLeanChain({
+        key,
+        path: 'ids.uid',
+        order: 2,
+        orderGroup: 'ids',
+        fieldType: 'text',
+        primary: ['university roll number'],
+        secondary: [],
+        generic: [],
+        negative: [],
+        options: undefined,
+        updatedAt: '2026-03-16T10:00:00.000Z',
+      }));
+
+    FieldMapping.find.mockImplementation(() => ({
+      select: jest.fn().mockReturnValue({
+        // ensureOrderMetadata path: .select(...).lean()
+        lean: jest.fn().mockResolvedValue([
+          { _id: 'a1', key: 'uid', path: 'ids.uid', order: 1, orderGroup: 'ids' },
+          { _id: 'a2', key: 'reg_no', path: 'ids.reg_no', order: 2, orderGroup: 'ids' },
+          { _id: 'a3', key: 'university_roll_number', path: 'ids.uid', order: 3, orderGroup: 'ids' },
+        ]),
+        // normalizeGroupOrders path: .select(...).sort(...).lean()
+        sort: jest.fn().mockReturnValue({
+          lean: jest.fn().mockResolvedValue([
+            { _id: 'a1', key: 'uid', order: 1, createdAt: '2026-03-16T09:00:00.000Z' },
+            { _id: 'a2', key: 'reg_no', order: 2, createdAt: '2026-03-16T09:01:00.000Z' },
+            { _id: 'a3', key: 'university_roll_number', order: 3, createdAt: '2026-03-16T09:02:00.000Z' },
+          ]),
+        }),
+      }),
+    }));
+
+    FieldMapping.updateOne.mockResolvedValue({ acknowledged: true, modifiedCount: 1 });
+    FieldMapping.updateMany.mockResolvedValue({ acknowledged: true, modifiedCount: 1 });
+    FieldMapping.bulkWrite.mockResolvedValue({ acknowledged: true, modifiedCount: 0 });
+    FieldMapping.countDocuments.mockResolvedValue(3);
+    ConfigVersion.bump.mockResolvedValue({ version: 12 });
+
+    const { status, body } = await requestWithMethodJson(
+      `/api/admin/field-mappings/${key}/reorder`,
+      'PATCH',
+      { direction: 'up' }
+    );
+
+    expect(status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(FieldMapping.updateMany).toHaveBeenCalledWith(
+      {
+        orderGroup: 'ids',
+        key: { $ne: key },
+        order: { $gte: 2, $lt: 3 },
+      },
+      { $inc: { order: 1 } },
+      undefined
+    );
+    expect(FieldMapping.updateOne).toHaveBeenNthCalledWith(
+      2,
+      { key },
+      { $set: { order: 2, updatedAt: expect.any(Date) } },
+      undefined
+    );
+    expect(ConfigVersion.bump).toHaveBeenCalledTimes(1);
+    expect(logAdminAction).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'FIELD_MAPPING_REORDER',
+      metadata: expect.objectContaining({ fieldId: key, from: 3, to: 2, orderGroup: 'ids' }),
+    }));
+  });
+
+  it('PATCH /api/admin/field-mappings/:key/reorder rejects payload containing both direction and order', async () => {
+    const { status, body } = await requestWithMethodJson(
+      '/api/admin/field-mappings/uid/reorder',
+      'PATCH',
+      { direction: 'down', order: 2 }
+    );
+
+    expect(status).toBe(400);
+    expect(body.success).toBe(false);
+    expect(body.message).toBe('Provide exactly one of direction or order.');
+  });
+
+  it('GET /api/admin/field-mappings returns order metadata sorted for admin display', async () => {
+    const finalRaw = [
+      {
+        key: 'uid',
+        path: 'ids.uid',
+        orderGroup: 'ids',
+        order: 1,
+        fieldType: 'text',
+        primary: ['uid'],
+        secondary: [],
+        generic: [],
+        negative: [],
+        options: undefined,
+        updatedAt: '2026-03-16T10:00:00.000Z',
+      },
+    ];
+
+    const ensureSelect = jest.fn().mockReturnValue({
+      lean: jest.fn().mockResolvedValue(finalRaw.map((m) => ({
+        _id: 'doc1',
+        key: m.key,
+        path: m.path,
+        orderGroup: m.orderGroup,
+        order: m.order,
+      }))),
+    });
+
+    const normalizeSort = jest.fn().mockReturnValue({
+      lean: jest.fn().mockResolvedValue([
+        { _id: 'doc1', key: 'uid', order: 1, createdAt: '2026-03-16T10:00:00.000Z' },
+      ]),
+    });
+    const normalizeSelect = jest.fn().mockReturnValue({ sort: normalizeSort });
+
+    const finalSort = jest.fn().mockReturnValue({
+      lean: jest.fn().mockResolvedValue(finalRaw),
+    });
+    const finalSelect = jest.fn().mockReturnValue({ sort: finalSort });
+
+    FieldMapping.find
+      .mockReturnValueOnce({ select: ensureSelect })
+      .mockReturnValueOnce({ select: normalizeSelect })
+      .mockReturnValueOnce({ select: finalSelect });
+
+    const { status, body } = await requestJson('/api/admin/field-mappings');
+
+    expect(status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(finalSort).toHaveBeenCalledWith({ orderGroup: 1, order: 1, key: 1 });
+    expect(body.mappings[0]).toEqual(expect.objectContaining({
+      key: 'uid',
+      orderGroup: 'ids',
+      order: 1,
+    }));
   });
 });
 
