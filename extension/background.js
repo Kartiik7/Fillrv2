@@ -72,6 +72,64 @@ const fetchWithTimeout = (url, options = {}) => {
     .finally(() => clearTimeout(id));
 };
 
+// ── Safe JSON parser for API responses ───────────────────────
+// Some platforms return HTML error pages (e.g., wrong URL/proxy) which causes
+// `response.json()` to throw "Unexpected token '<'". Parse text first so we can
+// surface a user-friendly, actionable message.
+const parseJsonResponse = async (response, contextLabel = 'Request') => {
+  const rawBody = await response.text();
+
+  if (!rawBody || !rawBody.trim()) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(rawBody);
+  } catch {
+    const looksLikeHtml = rawBody.trim().startsWith('<');
+    if (looksLikeHtml) {
+      if (response.status === 503 || response.status >= 500) {
+        throw new Error(
+          `${contextLabel} failed: backend is temporarily unavailable (${response.status}). ` +
+          `If hosted on Render free tier, wait about 30-60 seconds and retry.`
+        );
+      }
+
+      if (response.status === 404) {
+        throw new Error(
+          `${contextLabel} failed: endpoint not found (404). ` +
+          `Check extension API_URL in env.js and reload the extension.`
+        );
+      }
+
+      throw new Error(
+        `${contextLabel} failed: backend returned HTML instead of JSON. ` +
+        `Check extension API_URL in env.js and make sure it points to the backend API host.`
+      );
+    }
+    throw new Error(`${contextLabel} failed: backend returned invalid JSON.`);
+  }
+};
+
+const getErrorMessageFromResponse = (response, data, contextLabel = 'Request') => {
+  const apiMessage = data && typeof data.message === 'string' ? data.message.trim() : '';
+  if (apiMessage) return apiMessage;
+
+  if (response.status === 503) {
+    return `${contextLabel} failed: backend is temporarily unavailable (503). If hosted on Render free tier, wait about 30-60 seconds and retry.`;
+  }
+
+  if (response.status === 404) {
+    return `${contextLabel} failed: endpoint not found (404). Check extension API_URL in env.js and reload the extension.`;
+  }
+
+  if (response.status >= 500) {
+    return `${contextLabel} failed: server error (${response.status}). Please try again shortly.`;
+  }
+
+  return `${contextLabel} failed (${response.status}).`;
+};
+
 // ── Extension key → JWT exchange ──────────────────────────────────
 // Uses the stored raw API key to obtain a fresh JWT via POST /api/auth/extension.
 // Protects against: stale JWT reuse — always gets a fresh token from server.
@@ -85,7 +143,7 @@ const authenticateWithKey = async () => {
     body: JSON.stringify({ apiKey }),
   });
 
-  const data = await response.json();
+  const data = await parseJsonResponse(response, 'Extension authentication');
 
   if (!response.ok) {
     // If key is invalid/expired/revoked, clear it
@@ -93,7 +151,7 @@ const authenticateWithKey = async () => {
       await clearApiKey();
       await clearToken();
     }
-    throw new Error(data.message || 'Extension authentication failed.');
+    throw new Error(getErrorMessageFromResponse(response, data, 'Extension authentication'));
   }
 
   // Store the fresh JWT
@@ -146,8 +204,8 @@ const apiRequest = async (endpoint, options = {}) => {
     throw Object.assign(new Error('Session expired. Please log in again.'), { code: 'UNAUTHORIZED' });
   }
 
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || 'API request failed.');
+  const data = await parseJsonResponse(response, 'API request');
+  if (!response.ok) throw new Error(getErrorMessageFromResponse(response, data, 'API request'));
   return data;
 };
 
@@ -220,7 +278,16 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
       // skips re-processing when the version is unchanged.
       // No auth required — read-only public config.
       fetchWithTimeout(`${API_URL}/api/config/full`)
-        .then((r) => r.json())
+        .then(async (r) => {
+          const data = await parseJsonResponse(r, 'Config fetch');
+          if (!r.ok) {
+            return {
+              success: false,
+              message: getErrorMessageFromResponse(r, data, 'Config fetch'),
+            };
+          }
+          return data;
+        })
         .then((data) => sendResponse(data))
         .catch((err) => sendResponse({ success: false, message: err.message }));
       return true;

@@ -15,7 +15,7 @@
   ],
   "host_permissions": [
     "http://localhost:5000/*",
-    "https://fillrv2.onrender.com/*",
+    "https://fillrv2-ba1o.onrender.com/*",
     "https://docs.google.com/forms/*"
   ],
   "background": {
