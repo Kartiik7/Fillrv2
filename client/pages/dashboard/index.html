@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -456,15 +456,22 @@
         key,
         path,
         group,
+        // Preserve rank fields from the server so sorting respects admin-set order
+        order:      Number.isFinite(val.order) && val.order > 0 ? val.order : 999,
+        orderGroup: val.orderGroup || group,
         label: toLabel(key),
         type: val.fieldType || inferType(key, path),
         options: val.options || {},   // dropdown options for select type
         id: `fld-${key}`,
       });
     });
+    // Sort by orderGroup first, then by order (rank), then by key as tiebreaker.
+    // This matches the server-side sort: { orderGroup: 1, order: 1, key: 1 }.
     return list.sort((a, b) => {
-      if (a.group !== b.group) return a.group.localeCompare(b.group);
-      return a.label.localeCompare(b.label);
+      const groupCmp = a.orderGroup.localeCompare(b.orderGroup);
+      if (groupCmp !== 0) return groupCmp;
+      if (a.order !== b.order) return a.order - b.order;
+      return a.key.localeCompare(b.key);
     });
   }
 
