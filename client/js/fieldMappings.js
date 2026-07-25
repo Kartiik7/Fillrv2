@@ -957,9 +957,19 @@ function formatTime(iso) {
   } catch (_) { return '—'; }
 }
 
+// BroadcastChannel allows same-tab (and cross-tab) real-time notification.
+// The storage event only fires in OTHER tabs, so BroadcastChannel is needed
+// when the field-mappings page and dashboard are both open in the same tab.
+const _fmChannel = (() => {
+  try { return new BroadcastChannel('fillr:fm-changes'); } catch (_) { return null; }
+})();
+
 function notifyMappingsChanged() {
   try {
     localStorage.setItem(FM_CHANGE_KEY, String(Date.now()));
+  } catch (_) { /* non-blocking */ }
+  try {
+    _fmChannel?.postMessage({ type: 'MAPPINGS_CHANGED', ts: Date.now() });
   } catch (_) { /* non-blocking */ }
 }
 

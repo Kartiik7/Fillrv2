@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -767,6 +767,19 @@
       window.location.replace('/login');
     });
 
+    // BroadcastChannel fires in the SAME tab; the storage event only fires in OTHER tabs.
+    // Both are needed to cover all navigation patterns (SPA same-tab, multi-tab, etc.).
+    const _fmChannel = (() => {
+      try { return new BroadcastChannel('fillr:fm-changes'); } catch (_) { return null; }
+    })();
+    if (_fmChannel) {
+      _fmChannel.onmessage = (event) => {
+        if (event.data?.type === 'MAPPINGS_CHANGED') {
+          loadFieldMappingCount();
+          loadRecentFieldMappings();
+        }
+      };
+    }
     window.addEventListener('storage', (event) => {
       if (event.key === FM_CHANGE_KEY) {
         loadFieldMappingCount();
